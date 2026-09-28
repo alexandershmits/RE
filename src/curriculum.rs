@@ -193,6 +193,8 @@ pub struct Curriculum {
     #[serde(default)]
     pub challenges: Vec<Challenge>,
     #[serde(default)]
+    pub topic_map: String,
+    #[serde(default)]
     pub ethalon_writeups: Vec<Ethalon>,
 }
 

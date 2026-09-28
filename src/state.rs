@@ -31,6 +31,12 @@ pub struct Progress {
     /// solved challenge ids
     #[serde(default)]
     pub challenges_solved: std::collections::HashSet<String>,
+    /// XP history: (unix_day, total_xp) — sampled on each save, capped at 400 points
+    #[serde(default)]
+    pub xp_history: Vec<(u64, u32)>,
+    /// current streak: (last_active_unix_day, streak_len)
+    #[serde(default)]
+    pub streak: (u64, u32),
 }
 
 impl Progress {
@@ -176,6 +182,7 @@ impl CardSession {
 }
 
 impl AppState {
+    #[allow(dead_code)]
     pub fn with_curriculum(curriculum: Curriculum) -> Self {
         let progress = Progress::default();
         Self {
@@ -241,7 +248,29 @@ impl AppState {
         cc.egui_ctx.set_style(style);
     }
 
-    pub fn save(&self) {
+    pub fn save(&mut self) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let day = now / 86400;
+        // streak
+        if self.progress.streak.0 == 0 {
+            self.progress.streak = (day, 1);
+        } else if day > self.progress.streak.0 {
+            let delta = day - self.progress.streak.0;
+            self.progress.streak.1 = if delta == 1 { self.progress.streak.1 + 1 } else { 1 };
+            self.progress.streak.0 = day;
+        }
+        // history: one point per day
+        let h = &mut self.progress.xp_history;
+        match h.last_mut() {
+            Some((d, xp)) if *d == day => *xp = self.progress.xp,
+            _ => {
+                h.push((day, self.progress.xp));
+                if h.len() > 400 { h.remove(0); }
+            }
+        }
         if let Some(path) = Self::progress_path() {
             if let Ok(json) = serde_json::to_string_pretty(&self.progress) {
                 let _ = std::fs::create_dir_all(path.parent().unwrap());

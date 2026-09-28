@@ -226,6 +226,46 @@ fn dashboard(app: &mut AppState, ctx: &egui::Context) {
             });
             ui.add_space(12.0);
 
+            ui.heading("🔥 Активность");
+            let (last_day, streak) = app.progress.streak;
+            let today = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs() / 86400)
+                .unwrap_or(0);
+            let active_today = last_day == today;
+            ui.label(RichText::new(format!(
+                "Серия: {} дн. {}",
+                streak,
+                if active_today { "(сегодня отмечено ✓)" } else { "(зайдите сегодня!)" }
+            )).size(14.0).color(if active_today { GOOD } else { WARN }));
+
+            // XP sparkline (simple bars, last 30 days)
+            let h = &app.progress.xp_history;
+            if h.len() >= 2 {
+                ui.add_space(4.0);
+                ui.label(RichText::new("XP за последние дни:").weak().size(11.0));
+                let recent: Vec<(u64, u32)> = h[h.len().saturating_sub(30)..].to_vec();
+                let min = recent.iter().map(|x| x.1).min().unwrap_or(0);
+                let max = recent.iter().map(|x| x.1).max().unwrap_or(1);
+                let range = (max - min).max(1) as f32;
+                ui.horizontal_wrapped(|ui| {
+                    for (_day, xp) in &recent {
+                        let frac = (*xp - min) as f32 / range;
+                        let hgt = 4.0 + frac * 28.0;
+                        let (rect, _) = ui.allocate_exact_size(
+                            egui::vec2(6.0, 32.0),
+                            egui::Sense::hover(),
+                        );
+                        let bar = egui::Rect::from_min_max(
+                            egui::pos2(rect.left(), rect.bottom() - hgt),
+                            egui::pos2(rect.right(), rect.bottom()),
+                        );
+                        ui.painter().rect_filled(bar, 1.0, ACCENT.gamma_multiply(0.4 + frac * 0.6));
+                    }
+                });
+            }
+            ui.add_space(10.0);
+
             ui.heading("📊 Слабые темы (по неверным ответам квизов)");
             let weak = app.weak_topics();
             if weak.is_empty() {
@@ -791,6 +831,22 @@ fn rubric(app: &mut AppState, ctx: &egui::Context) {
 fn diagrams(app: &mut AppState, ctx: &egui::Context) {
     egui::CentralPanel::default().show(ctx, |ui| {
         ui.heading("🗺 Визуальные схемы");
+        // Topic graph at top
+        if !app.curriculum.topic_map.is_empty() {
+            ui.collapsing(RichText::new("🌍 КАРТА КУРСА — как связаны все темы").strong().color(ACCENT).size(15.0), |ui| {
+                let mut code = app.curriculum.topic_map.clone();
+                egui::Frame::group(ui.style()).fill(egui::Color32::from_rgb(12,13,18)).show(ui, |ui| {
+                    ui.add(
+                        egui::TextEdit::multiline(&mut code)
+                            .font(egui::TextStyle::Monospace)
+                            .desired_rows(42)
+                            .desired_width(760.0)
+                            .interactive(false),
+                    );
+                });
+            });
+            ui.add_space(6.0);
+        }
         ui.label(RichText::new("Моноширинные схемы-шпаргалки: стек, vtable, PE, GOT/PLT, hollowing, пайплайн. Вернитесь к ним, когда тема встретится в практике.").weak());
         ui.separator();
         ScrollArea::vertical().id_salt("diagrams").show(ui, |ui| {
