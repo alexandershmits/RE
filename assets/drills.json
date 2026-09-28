@@ -1,0 +1,821 @@
+{
+ "asm": [
+  {
+   "c": "int f(int a) { return a + 5; }",
+   "asm": [
+    "lea eax, [rcx+5]",
+    "ret"
+   ],
+   "answers": [
+    "a+5",
+    "a*5",
+    "a-5",
+    "адрес a+5"
+   ],
+   "correct": 0,
+   "explain": "lea с константой — обычное сложение."
+  },
+  {
+   "c": "int f(int a) { return a * 8; }",
+   "asm": [
+    "mov eax, ecx",
+    "shl eax, 3",
+    "ret"
+   ],
+   "answers": [
+    "a*8",
+    "a^8",
+    "a/8",
+    "a+8"
+   ],
+   "correct": 0,
+   "explain": "shl на 3 = умножение на 8."
+  },
+  {
+   "c": "int f(int a) { return a / 4; }",
+   "asm": [
+    "mov eax, ecx",
+    "sar eax, 2",
+    "ret"
+   ],
+   "answers": [
+    "a/4 (sar: signed)",
+    "a*4",
+    "a%4",
+    "a-4"
+   ],
+   "correct": 0,
+   "explain": "sar 2 = деление на 4 со знаком; unsigned был бы shr."
+  },
+  {
+   "c": "int f(int a, int b) { return a == b; }",
+   "asm": [
+    "cmp ecx, edx",
+    "sete al",
+    "movzx eax, al",
+    "ret"
+   ],
+   "answers": [
+    "1 если a==b, иначе 0",
+    "разность a-b",
+    "всегда 1",
+    "a при a==b"
+   ],
+   "correct": 0,
+   "explain": "sete ставит 1 при ZF=1."
+  },
+  {
+   "c": "int f(int a) { return a < 0; }",
+   "asm": [
+    "test ecx, ecx",
+    "sets al",
+    "movzx eax, al",
+    "ret"
+   ],
+   "answers": [
+    "1 если a<0",
+    "1 если a==0",
+    "знак a",
+    "0"
+   ],
+   "correct": 0,
+   "explain": "sets = SF установлен → отрицательное."
+  },
+  {
+   "c": "int f(int a) { return -a; }",
+   "asm": [
+    "mov eax, ecx",
+    "neg eax",
+    "ret"
+   ],
+   "answers": [
+    "-a",
+    "a",
+    "~a",
+    "0"
+   ],
+   "correct": 0,
+   "explain": "neg — two's complement."
+  },
+  {
+   "c": "int f(int a) { return a ^ 0xFF; }",
+   "asm": [
+    "mov eax, ecx",
+    "xor eax, 0xFF",
+    "ret"
+   ],
+   "answers": [
+    "a XOR 255",
+    "a AND 255",
+    "a OR 255",
+    "a+255"
+   ],
+   "correct": 0,
+   "explain": "xor с маской — флип битов."
+  },
+  {
+   "c": "int f(int a) { return a & 0xF; }",
+   "asm": [
+    "mov eax, ecx",
+    "and eax, 0xF",
+    "ret"
+   ],
+   "answers": [
+    "младшие 4 бита",
+    "старшие 4 бита",
+    "a mod 16 нет",
+    "a+15"
+   ],
+   "correct": 0,
+   "explain": "AND 0b1111 — младший ниббл."
+  },
+  {
+   "c": "int f(int a) { if (a > 10) return 1; return 0; }",
+   "asm": [
+    "cmp ecx, 10",
+    "jg L1",
+    "xor eax, eax",
+    "ret",
+    "L1: mov eax, 1",
+    "ret"
+   ],
+   "answers": [
+    "1 при a>10 (signed)",
+    "1 при a>=10",
+    "1 при a<10",
+    "1 при a==10"
+   ],
+   "correct": 0,
+   "explain": "jg — строго больше signed."
+  },
+  {
+   "c": "int f(unsigned a) { if (a > 10) return 1; return 0; }",
+   "asm": [
+    "cmp ecx, 10",
+    "ja L1",
+    "xor eax, eax",
+    "ret",
+    "L1: mov eax, 1",
+    "ret"
+   ],
+   "answers": [
+    "1 при a>10 (unsigned)",
+    "то же что jg",
+    "1 при a>=10",
+    "1 всегда"
+   ],
+   "correct": 0,
+   "explain": "ja — unsigned; jg — signed. Разница при старшем бите!"
+  },
+  {
+   "c": "int f(int a) { return a ? 7 : 3; }",
+   "asm": [
+    "test ecx, ecx",
+    "mov eax, 3",
+    "cmovne eax, 7",
+    "ret"
+   ],
+   "answers": [
+    "7 при a!=0, иначе 3",
+    "7 всегда",
+    "3 при a!=0",
+    "a==0 ? 7 : 3"
+   ],
+   "correct": 0,
+   "explain": "cmov заменяет ветвление."
+  },
+  {
+   "c": "int f(int a) { return ~a + 1; }",
+   "asm": [
+    "mov eax, ecx",
+    "not eax",
+    "inc eax",
+    "ret"
+   ],
+   "answers": [
+    "-a",
+    "a+1",
+    "~a",
+    "0"
+   ],
+   "correct": 0,
+   "explain": "not+inc = neg."
+  },
+  {
+   "c": "int f(char *s) { return s[0] - '0'; }",
+   "asm": [
+    "mov eax, dword [rcx]",
+    "and eax, 0xFF",
+    "sub eax, 0x30",
+    "ret"
+   ],
+   "answers": [
+    "цифра первого символа",
+    "ASCII целиком",
+    "длину строки",
+    "0"
+   ],
+   "correct": 0,
+   "explain": "AND байт + sub 0x30 = из ASCII в число."
+  },
+  {
+   "c": "int f(int a) { return a >> 31; }",
+   "asm": [
+    "mov eax, ecx",
+    "sar eax, 31",
+    "ret"
+   ],
+   "answers": [
+    "0 или -1 (знак)",
+    "0 или 1",
+    "модуль a",
+    "0"
+   ],
+   "correct": 0,
+   "explain": "sar 31 распространяет знаковый бит."
+  },
+  {
+   "c": "struct S { int a,b,c; }; int f(struct S *s) { return s->c; }",
+   "asm": [
+    "mov eax, dword [rcx+8]",
+    "ret"
+   ],
+   "answers": [
+    "поле c (offset 8)",
+    "поле c (offset 4)",
+    "поле b",
+    "поле a"
+   ],
+   "correct": 0,
+   "explain": "a@0,b@4,c@8: смещение = размер предыдущих полей."
+  },
+  {
+   "c": "int f(int a) { return a % 8; }",
+   "asm": [
+    "mov eax, ecx",
+    "and eax, 7",
+    "ret"
+   ],
+   "answers": [
+    "a mod 8 (для положит.)",
+    "a/8",
+    "младший бит",
+    "a-8"
+   ],
+   "correct": 0,
+   "explain": "mod 2^n = AND (2^n - 1)."
+  },
+  {
+   "c": "int f(int a, int b, int c) { return a + b * c; }",
+   "asm": [
+    "mov eax, edx",
+    "imul eax, r8d",
+    "add eax, ecx",
+    "ret"
+   ],
+   "answers": [
+    "a + b*c",
+    "(a+b)*c",
+    "a*b + c",
+    "a+b+c"
+   ],
+   "correct": 0,
+   "explain": "imul первым — приоритет операций виден в asm."
+  },
+  {
+   "c": "int f(int a) { return a == 0 ? -1 : a; }",
+   "asm": [
+    "test ecx, ecx",
+    "mov eax, -1",
+    "cmovne eax, ecx",
+    "ret"
+   ],
+   "answers": [
+    "a, или -1 при a==0",
+    "a-1",
+    "-1 всегда",
+    "a==0"
+   ],
+   "correct": 0,
+   "explain": "База -1, cmovne перекрывает."
+  },
+  {
+   "c": "int f(int *p) { return p[2]; }",
+   "asm": [
+    "mov eax, dword [rcx+8]",
+    "ret"
+   ],
+   "answers": [
+    "третий элемент int-массива",
+    "второй",
+    "байт по адресу+2",
+    "адрес"
+   ],
+   "correct": 0,
+   "explain": "int=4 байта: p[2]=[p+8]."
+  },
+  {
+   "c": "int f(int a) { return (a & 1) ^ 1; }",
+   "asm": [
+    "mov eax, ecx",
+    "and eax, 1",
+    "xor eax, 1",
+    "ret"
+   ],
+   "answers": [
+    "1 если чётное",
+    "1 если нечётное",
+    "младший бит",
+    "a-1"
+   ],
+   "correct": 0,
+   "explain": "(a&1) XOR 1 = инверсия младшего бита = чётность."
+  }
+ ],
+ "addr": [
+  {
+   "q": "ImageBase=0x400000, AddressOfEntryPoint(RVA)=0x61C9. VA точки входа?",
+   "answers": [
+    "0x4061C9",
+    "0x3F9E37",
+    "0x61C9",
+    "0x40C392"
+   ],
+   "correct": 0,
+   "explain": "VA = ImageBase + RVA."
+  },
+  {
+   "q": "ImageBase=0x400000, функция по VA 0x4010A6. Её RVA?",
+   "answers": [
+    "0x214C",
+    "0x400000",
+    "0x4010A6",
+    "0x10A6"
+   ],
+   "correct": 3,
+   "explain": "RVA = VA - ImageBase."
+  },
+  {
+   "q": "Секция: RVA=0x1A0E, PointerToRawData=0x5AE. Байт по file offset 0x62D лежит на RVA?",
+   "answers": [
+    "0x1A8D",
+    "0x180001A8D",
+    "0x62D",
+    "0x198F"
+   ],
+   "correct": 0,
+   "explain": "Внутрисекционное смещение = 0x7F; RVA = sect_RVA + 0x7F."
+  },
+  {
+   "q": "VA=0x140002389, RVA=0x2389. Чему равен ImageBase?",
+   "answers": [
+    "0x13FFFDC77",
+    "0x140000000",
+    "0x140002389",
+    "0x2389"
+   ],
+   "correct": 1,
+   "explain": "ImageBase = VA - RVA."
+  },
+  {
+   "q": "ImageBase=0x180000000, AddressOfEntryPoint(RVA)=0x5F1A. VA точки входа?",
+   "answers": [
+    "0x5F1A",
+    "0x180005F1A",
+    "0x17FFFA0E6",
+    "0x18000BE34"
+   ],
+   "correct": 1,
+   "explain": "VA = ImageBase + RVA."
+  },
+  {
+   "q": "ImageBase=0x140000000, функция по VA 0x140008F9A. Её RVA?",
+   "answers": [
+    "0x8F9A",
+    "0x140008F9A",
+    "0x11F34",
+    "0x140000000"
+   ],
+   "correct": 0,
+   "explain": "RVA = VA - ImageBase."
+  },
+  {
+   "q": "Секция: RVA=0x10CF, PointerToRawData=0x5CB. Байт по file offset 0x60B лежит на RVA?",
+   "answers": [
+    "0x60B",
+    "0x14000110F",
+    "0x108F",
+    "0x110F"
+   ],
+   "correct": 3,
+   "explain": "Внутрисекционное смещение = 0x40; RVA = sect_RVA + 0x40."
+  },
+  {
+   "q": "VA=0x180007DED, RVA=0x7DED. Чему равен ImageBase?",
+   "answers": [
+    "0x7DED",
+    "0x17FFF8213",
+    "0x180000000",
+    "0x180007DED"
+   ],
+   "correct": 2,
+   "explain": "ImageBase = VA - RVA."
+  },
+  {
+   "q": "ImageBase=0x180000000, AddressOfEntryPoint(RVA)=0x882A. VA точки входа?",
+   "answers": [
+    "0x18000882A",
+    "0x882A",
+    "0x17FFF77D6",
+    "0x180011054"
+   ],
+   "correct": 0,
+   "explain": "VA = ImageBase + RVA."
+  },
+  {
+   "q": "ImageBase=0x400000, функция по VA 0x405B5C. Её RVA?",
+   "answers": [
+    "0x5B5C",
+    "0x400000",
+    "0xB6B8",
+    "0x405B5C"
+   ],
+   "correct": 0,
+   "explain": "RVA = VA - ImageBase."
+  },
+  {
+   "q": "Секция: RVA=0x1B84, PointerToRawData=0x599. Байт по file offset 0x6BC лежит на RVA?",
+   "answers": [
+    "0x1CA7",
+    "0x1A61",
+    "0x6BC",
+    "0x180001CA7"
+   ],
+   "correct": 0,
+   "explain": "Внутрисекционное смещение = 0x123; RVA = sect_RVA + 0x123."
+  },
+  {
+   "q": "VA=0x14000189B, RVA=0x189B. Чему равен ImageBase?",
+   "answers": [
+    "0x13FFFE765",
+    "0x189B",
+    "0x14000189B",
+    "0x140000000"
+   ],
+   "correct": 3,
+   "explain": "ImageBase = VA - RVA."
+  },
+  {
+   "q": "ImageBase=0x140000000, AddressOfEntryPoint(RVA)=0x3EDC. VA точки входа?",
+   "answers": [
+    "0x140003EDC",
+    "0x140007DB8",
+    "0x13FFFC124",
+    "0x3EDC"
+   ],
+   "correct": 0,
+   "explain": "VA = ImageBase + RVA."
+  },
+  {
+   "q": "ImageBase=0x400000, функция по VA 0x4041D0. Её RVA?",
+   "answers": [
+    "0x4041D0",
+    "0x83A0",
+    "0x400000",
+    "0x41D0"
+   ],
+   "correct": 3,
+   "explain": "RVA = VA - ImageBase."
+  },
+  {
+   "q": "Секция: RVA=0x165C, PointerToRawData=0x5FB. Байт по file offset 0x60D лежит на RVA?",
+   "answers": [
+    "0x14000166E",
+    "0x60D",
+    "0x164A",
+    "0x166E"
+   ],
+   "correct": 3,
+   "explain": "Внутрисекционное смещение = 0x12; RVA = sect_RVA + 0x12."
+  },
+  {
+   "q": "VA=0x180006B74, RVA=0x6B74. Чему равен ImageBase?",
+   "answers": [
+    "0x180006B74",
+    "0x180000000",
+    "0x6B74",
+    "0x17FFF948C"
+   ],
+   "correct": 1,
+   "explain": "ImageBase = VA - RVA."
+  },
+  {
+   "q": "ImageBase=0x180000000, AddressOfEntryPoint(RVA)=0x4911. VA точки входа?",
+   "answers": [
+    "0x4911",
+    "0x180009222",
+    "0x17FFFB6EF",
+    "0x180004911"
+   ],
+   "correct": 3,
+   "explain": "VA = ImageBase + RVA."
+  },
+  {
+   "q": "ImageBase=0x400000, функция по VA 0x405E56. Её RVA?",
+   "answers": [
+    "0xBCAC",
+    "0x5E56",
+    "0x400000",
+    "0x405E56"
+   ],
+   "correct": 1,
+   "explain": "RVA = VA - ImageBase."
+  },
+  {
+   "q": "Секция: RVA=0x1259, PointerToRawData=0x469. Байт по file offset 0x58C лежит на RVA?",
+   "answers": [
+    "0x58C",
+    "0x40137C",
+    "0x137C",
+    "0x1136"
+   ],
+   "correct": 2,
+   "explain": "Внутрисекционное смещение = 0x123; RVA = sect_RVA + 0x123."
+  },
+  {
+   "q": "VA=0x1800089DC, RVA=0x89DC. Чему равен ImageBase?",
+   "answers": [
+    "0x17FFF7624",
+    "0x1800089DC",
+    "0x180000000",
+    "0x89DC"
+   ],
+   "correct": 2,
+   "explain": "ImageBase = VA - RVA."
+  },
+  {
+   "q": "ImageBase=0x140000000, AddressOfEntryPoint(RVA)=0x3BB5. VA точки входа?",
+   "answers": [
+    "0x14000776A",
+    "0x140003BB5",
+    "0x13FFFC44B",
+    "0x3BB5"
+   ],
+   "correct": 1,
+   "explain": "VA = ImageBase + RVA."
+  },
+  {
+   "q": "ImageBase=0x180000000, функция по VA 0x1800021CB. Её RVA?",
+   "answers": [
+    "0x180000000",
+    "0x4396",
+    "0x21CB",
+    "0x1800021CB"
+   ],
+   "correct": 2,
+   "explain": "RVA = VA - ImageBase."
+  },
+  {
+   "q": "Секция: RVA=0x1F7B, PointerToRawData=0x429. Байт по file offset 0x469 лежит на RVA?",
+   "answers": [
+    "0x140001FBB",
+    "0x1FBB",
+    "0x1F3B",
+    "0x469"
+   ],
+   "correct": 1,
+   "explain": "Внутрисекционное смещение = 0x40; RVA = sect_RVA + 0x40."
+  },
+  {
+   "q": "VA=0x403F9E, RVA=0x3F9E. Чему равен ImageBase?",
+   "answers": [
+    "0x3F9E",
+    "0x403F9E",
+    "0x400000",
+    "0x3FC062"
+   ],
+   "correct": 2,
+   "explain": "ImageBase = VA - RVA."
+  }
+ ],
+ "pattern": [
+  {
+   "asm": "mov eax, 0\nL: add eax, [rcx]\nadd rcx, 4\ndec edx\njnz L",
+   "answers": [
+    "XOR-шифрование",
+    "strlen",
+    "сумма элементов массива (цикл)",
+    "strcmp"
+   ],
+   "correct": 2,
+   "explain": "add [rcx] с шагом 4 = int-массив; dec/jnz — счётчик."
+  },
+  {
+   "asm": "L: mov al, [rsi]\nxor al, 0x42\nmov [rdi], al\ninc rsi\ninc rdi\ndec edx\njnz L",
+   "answers": [
+    "копирование",
+    "сумма",
+    "reverse строки",
+    "XOR-дешифровка буфера"
+   ],
+   "correct": 3,
+   "explain": "чтение байта, XOR-константа, запись — классика расшифровки конфигов."
+  },
+  {
+   "asm": "L: cmp al, [rcx]\njz found\ninc rcx\ntest al, al\njnz L",
+   "answers": [
+    "strlen",
+    "поиск символа в строке",
+    "free",
+    "memcpy"
+   ],
+   "correct": 1,
+   "explain": "cmp + скан до нуля — strchr-паттерн."
+  },
+  {
+   "asm": "cmp byte [rcx], 0\nje L2\ninc rcx\njmp L1\nL2:",
+   "answers": [
+    "atoi",
+    "memset",
+    "strlen",
+    "strcpy"
+   ],
+   "correct": 2,
+   "explain": "счётчик до нуль-терминатора."
+  },
+  {
+   "asm": "push rbx\nmov rbx, rcx\npop rbx\nret",
+   "answers": [
+    "switch",
+    "сохранение callee-saved регистра",
+    "XOR-шифрование",
+    "рекурсия"
+   ],
+   "correct": 1,
+   "explain": "push/pop rbx вокруг тела — rbx callee-saved!"
+  },
+  {
+   "asm": "cmp eax, 1\nje A\ncmp eax, 2\nje B\ncmp eax, 3\nje C",
+   "answers": [
+    "рекурсия",
+    "jump table",
+    "switch (if-else chain)",
+    "цикл"
+   ],
+   "correct": 2,
+   "explain": "цепочка cmp/je — простейший switch."
+  },
+  {
+   "asm": "jmp dword [rax*4 + 0x401000]",
+   "answers": [
+    "XOR",
+    "memcpy",
+    "call stack",
+    "jump table (таблица переходов)"
+   ],
+   "correct": 3,
+   "explain": "адрес = таблица + индекс*4 — оптимизированный switch."
+  },
+  {
+   "asm": "movaps xmm0, [rcx]\npaddb xmm0, xmm1",
+   "answers": [
+    "string",
+    "stack",
+    "XOR",
+    "SIMD-обработка (SSE)",
+    "SIMD/SSE"
+   ],
+   "correct": 3,
+   "explain": "xmm регистры + padd = параллельная обработка."
+  },
+  {
+   "asm": "call qword [rip+0x2F1A]",
+   "answers": [
+    "switch",
+    "рекурсия",
+    "обфускация",
+    "вызов через IAT/GOT (импорт)"
+   ],
+   "correct": 3,
+   "explain": "косвенный вызов через таблицу импортов."
+  },
+  {
+   "asm": "mov eax, [rcx]\ncmp eax, 0x534F4C45\njz found_magic",
+   "answers": [
+    "проверка магической константы",
+    "malloc",
+    "обфускация",
+    "strlen"
+   ],
+   "correct": 0,
+   "explain": "0x534F4C45 = 'LEOS' little-endian — поиск сигнатуры."
+  },
+  {
+   "asm": "test rcx, rcx\njs neg_path\nneg rcx",
+   "answers": [
+    "call",
+    "обработка знака (модуль)",
+    "XOR",
+    "switch"
+   ],
+   "correct": 1,
+   "explain": "js (знак) + neg — работа с модулем числа."
+  },
+  {
+   "asm": "L: rol eax, 7\nadd eax, 0x1234\nloop L",
+   "answers": [
+    "AES",
+    "хеш-функция (не-криптостойкая)",
+    "копирование",
+    "strlen"
+   ],
+   "correct": 1,
+   "explain": "rol + add в цикле — классический хеш."
+  },
+  {
+   "asm": "movzx eax, byte [rcx+rdx]\nxor eax, r8d",
+   "answers": [
+    "sum",
+    "copy",
+    "switch",
+    "по-байтовый XOR двух буферов"
+   ],
+   "correct": 3,
+   "explain": "movzx байтов + xor — расшифровка или сравнение."
+  },
+  {
+   "asm": "sub rsp, 0x200\nmov [rsp+0x40], rcx",
+   "answers": [
+    "XOR",
+    "импорт",
+    "выделение локальных переменных (стек-кадр)",
+    "jump table"
+   ],
+   "correct": 2,
+   "explain": "sub rsp — резерв кадра; [rsp+X] — локалы."
+  },
+  {
+   "asm": "lea rax, [rip+0x1F2A]",
+   "answers": [
+    "jump table",
+    "stack",
+    "XOR",
+    "RIP-relative адрес (глобал/PIE)"
+   ],
+   "correct": 3,
+   "explain": "RIP-relative — позиционно-независимый код."
+  }
+ ],
+ "script": [
+  {
+   "task": "Python: вывести первые 16 байт файла в hex",
+   "answer": "print(open('f','rb').read(16).hex())",
+   "hint": "'rb' обязателен; .hex() даёт hex-строку."
+  },
+  {
+   "task": "YARA: строка 'cmd.exe' в любом регистре, ASCII и UTF-16",
+   "answer": "rule cmd { strings: $s = \"cmd.exe\" ascii wide nocase condition: $s }",
+   "hint": "nocase — регистр; wide — UTF-16LE."
+  },
+  {
+   "task": "Python struct: DWORD little-endian из 4 байтов",
+   "answer": "struct.unpack('<I', b)[0]",
+   "hint": "<I = unsigned LE dword."
+  },
+  {
+   "task": "Frida: хук send(), дамп первых 64 байт буфера",
+   "answer": "Interceptor.attach(Module.getExportByName(null,'send'), { onEnter(a){ console.log(hexdump(a[1],{length:64})); } });",
+   "hint": "send(sock,buf,len): buf = args[1]."
+  },
+  {
+   "task": "pefile: вывести AddressOfEntryPoint",
+   "answer": "pefile.PE('f.exe').OPTIONAL_HEADER.AddressOfEntryPoint",
+   "hint": "pefile — стандарт Python для PE."
+  },
+  {
+   "task": "YARA: условие — строка \"UPX\" встречается более 5 раз",
+   "answer": "rule upx { strings: $u = \"UPX\" condition: #u > 5 }",
+   "hint": "#u — счётчик совпадений."
+  },
+  {
+   "task": "Python: VA из RVA=0x1234, ImageBase=0x400000",
+   "answer": "0x400000 + 0x1234  # = 0x401234",
+   "hint": "Не путать с file offset!"
+  },
+  {
+   "task": "Frida: подменить retval функции на 1",
+   "answer": "Interceptor.attach(addr, { onLeave(r){ r.replace(1); } });",
+   "hint": "onLeave + replace — быстрый обход is_licensed()."
+  },
+  {
+   "task": "capa: JSON-отчёт из CLI",
+   "answer": "capa file.exe --json > capa.json",
+   "hint": "--json для пайплайнов."
+  },
+  {
+   "task": "Python: энтропия ~8 бит/байт означает...",
+   "answer": "упаковку/шифрование (почти случайные данные)",
+   "hint": "<6 — обычный код/текст."
+  }
+ ]
+}
