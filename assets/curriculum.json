@@ -2813,7 +2813,8 @@
    "flag": "lv1a_strings",
    "desc": "strcmp со строкой-константой",
    "sha256": "303585d579fd492b",
-   "file": "challenges/lv1a"
+   "file": "challenges/lv1a",
+   "file_exe": "challenges/lv1a.exe"
   },
   {
    "id": "lv1b",
@@ -2823,7 +2824,8 @@
    "flag": "lv1b_31337",
    "desc": "сравнение с константой",
    "sha256": "023159b8db70f916",
-   "file": "challenges/lv1b"
+   "file": "challenges/lv1b",
+   "file_exe": "challenges/lv1b.exe"
   },
   {
    "id": "lv1c",
@@ -2833,7 +2835,8 @@
    "flag": "lv1c_concat",
    "desc": "конкатенация строк",
    "sha256": "f787006119508537",
-   "file": "challenges/lv1c"
+   "file": "challenges/lv1c",
+   "file_exe": "challenges/lv1c.exe"
   },
   {
    "id": "lv2a",
@@ -2843,7 +2846,8 @@
    "flag": "lv2a_xor",
    "desc": "XOR-проверка числа",
    "sha256": "b63284c5b9640c79",
-   "file": "challenges/lv2a"
+   "file": "challenges/lv2a",
+   "file_exe": "challenges/lv2a.exe"
   },
   {
    "id": "lv2b",
@@ -2853,7 +2857,8 @@
    "flag": "lv2b_bytecmp",
    "desc": "массив байтов + XOR-маска",
    "sha256": "73d4d0fad7e5e0ea",
-   "file": "challenges/lv2b"
+   "file": "challenges/lv2b",
+   "file_exe": "challenges/lv2b.exe"
   },
   {
    "id": "lv2c",
@@ -2863,7 +2868,8 @@
    "flag": "lv2c_shl",
    "desc": "сдвиг влево",
    "sha256": "34551cec2d6ce118",
-   "file": "challenges/lv2c"
+   "file": "challenges/lv2c",
+   "file_exe": "challenges/lv2c.exe"
   },
   {
    "id": "lv2d",
@@ -2873,7 +2879,8 @@
    "flag": "lv2d_shr",
    "desc": "сдвиг вправо",
    "sha256": "66c21831c40af71a",
-   "file": "challenges/lv2d"
+   "file": "challenges/lv2d",
+   "file_exe": "challenges/lv2d.exe"
   },
   {
    "id": "lv3a",
@@ -2883,7 +2890,8 @@
    "flag": "lv3a_hash31",
    "desc": "итеративный хеш строки",
    "sha256": "c42caa709a52ca94",
-   "file": "challenges/lv3a"
+   "file": "challenges/lv3a",
+   "file_exe": "challenges/lv3a.exe"
   },
   {
    "id": "lv3b",
@@ -2893,7 +2901,8 @@
    "flag": "lv3b_xorpos",
    "desc": "позиционный XOR",
    "sha256": "0c21b5b585eeaf4d",
-   "file": "challenges/lv3b"
+   "file": "challenges/lv3b",
+   "file_exe": "challenges/lv3b.exe"
   },
   {
    "id": "lv3c",
@@ -2903,7 +2912,8 @@
    "flag": "lv3c_djb2",
    "desc": "djb2-хеш",
    "sha256": "ca21d4fec018f20f",
-   "file": "challenges/lv3c"
+   "file": "challenges/lv3c",
+   "file_exe": "challenges/lv3c.exe"
   },
   {
    "id": "lv4a",
@@ -2913,7 +2923,8 @@
    "flag": "lv4a_shift",
    "desc": "трансформация ввода перед сравнением",
    "sha256": "661b3c12edfd7d75",
-   "file": "challenges/lv4a"
+   "file": "challenges/lv4a",
+   "file_exe": "challenges/lv4a.exe"
   },
   {
    "id": "lv4b",
@@ -2923,7 +2934,8 @@
    "flag": "lv4b_2stage",
    "desc": "многоступенчатая проверка",
    "sha256": "25d3a1501952a33e",
-   "file": "challenges/lv4b"
+   "file": "challenges/lv4b",
+   "file_exe": "challenges/lv4b.exe"
   },
   {
    "id": "lv4c",
@@ -2933,7 +2945,8 @@
    "flag": "lv4c_keygen",
    "desc": "без ключгена никак",
    "sha256": "d7c2b4cbeab48315",
-   "file": "challenges/lv4c"
+   "file": "challenges/lv4c",
+   "file_exe": "challenges/lv4c.exe"
   }
  ],
  "ethalon_writeups": [

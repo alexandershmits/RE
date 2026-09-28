@@ -1282,6 +1282,15 @@ fn challenges(app: &mut AppState, ctx: &egui::Context) {
                     ui.collapsing("💭 Подсказка", |ui| {
                         ui.label(&ch.hint);
                     });
+                    ui.horizontal(|ui| {
+                        if ui.small_button("📤 В лабу").on_hover_text("Скопировать бинари в ~/re50-lab/").clicked() {
+                            match app.export_challenge(&ch.id) {
+                                Some(dir) => app.toast(format!("Скопировано в {dir}"), ctx),
+                                None => app.toast("Не удалось скопировать", ctx),
+                            }
+                        }
+                        ui.label(RichText::new(format!("файлы: {} / {}.exe", ch.id, ch.id)).weak().size(10.0));
+                    });
                     if !solved {
                         ui.horizontal(|ui| {
                             ui.label("Флаг:");

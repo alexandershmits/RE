@@ -3,6 +3,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod challenge_blob;
 mod curriculum;
 mod simulators;
 mod state;
@@ -29,4 +30,45 @@ fn main() -> Result<(), eframe::Error> {
             Ok(Box::new(app))
         }),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::curriculum::Curriculum;
+
+    #[test]
+    fn curriculum_parses() {
+        let c = Curriculum::load();
+        assert!(c.weeks.len() >= 37, "weeks missing");
+        assert!(c.quizzes.len() >= 60);
+        assert!(c.drills.asm.len() + c.drills.addr.len() + c.drills.pattern.len() + c.drills.script.len() >= 69);
+        assert!(!c.challenges.is_empty(), "no challenges");
+    }
+
+    #[test]
+    fn challenge_binaries_embedded() {
+        let c = Curriculum::load();
+        for ch in &c.challenges {
+            assert!(
+                crate::challenge_blob::EMBEDDED_CHALLENGES.iter().any(|(n, _)| n == &format!("challenges/{}", ch.id)),
+                "missing ELF blob for {}",
+                ch.id
+            );
+            assert!(
+                crate::challenge_blob::EMBEDDED_CHALLENGES.iter().any(|(n, _)| n == &format!("challenges/{}.exe", ch.id)),
+                "missing EXE blob for {}",
+                ch.id
+            );
+        }
+    }
+
+    #[test]
+    fn progress_roundtrip() {
+        let c2 = Curriculum::load();
+        let mut st = crate::state::AppState::with_curriculum(c2);
+        st.add_xp(10);
+        let json = st.export_progress();
+        assert!(json.contains("\"xp\":10"), "xp missing in: {}", json);
+        assert!(st.import_progress(&json));
+    }
 }

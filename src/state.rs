@@ -176,6 +176,29 @@ impl CardSession {
 }
 
 impl AppState {
+    pub fn with_curriculum(curriculum: Curriculum) -> Self {
+        let progress = Progress::default();
+        Self {
+            curriculum,
+            progress,
+            tab: Tab::default(),
+            selected_week: 0,
+            quiz: None,
+            quiz_feedback: Vec::new(),
+            toast: None,
+            start_time: 0.0,
+            new_achievements: Vec::new(),
+            cards: None,
+            placement: None,
+            sim: SimState::default(),
+            drill: DrillState::default(),
+            challenge_input: std::collections::HashMap::new(),
+            import_text: String::new(),
+            pset_pending_explain: None,
+            progress_export_text: String::new(),
+        }
+    }
+
     pub fn load_or_default() -> Self {
         let curriculum = Curriculum::load();
         let progress = Self::read_progress_file().unwrap_or_default();
@@ -271,6 +294,37 @@ impl AppState {
     }
 
     #[allow(dead_code)]
+    /// Export challenge binaries (ELF + EXE) to ~/re50-lab/<id>/
+    pub fn export_challenge(&self, id: &str) -> Option<String> {
+        let ch = self.curriculum.challenges.iter().find(|c| c.id == id)?;
+        let home = std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"))?; // Windows
+        let dir = std::path::PathBuf::from(home).join("re50-lab").join(id);
+        std::fs::create_dir_all(&dir).ok()?;
+        let elf_bytes = include_bytes_with_fallback(&format!("assets/challenges/{}", id));
+        let exe_bytes = include_bytes_with_fallback(&format!("assets/challenges/{}.exe", id));
+        if let Some(b) = elf_bytes {
+            let p = dir.join(id);
+            std::fs::write(&p, b).ok()?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755));
+            }
+        }
+        if let Some(b) = exe_bytes {
+            let p = dir.join(format!("{id}.exe"));
+            std::fs::write(&p, b).ok()?;
+        }
+        // write task note
+        let note = format!(
+            "Челлендж: {} (уровень {})\nЗадача: {}\nПодсказка: {}\n\nЗапуск:\n  Linux: ./{}\n  Windows: {}.exe\nРешите в Ghidra/x64dbg и введите флаг в приложении.",
+            ch.title, ch.level, ch.desc, ch.hint, id, id
+        );
+        std::fs::write(dir.join("TASK.txt"), note).ok()?;
+        Some(dir.to_string_lossy().to_string())
+    }
+
     pub fn submit_flag(&mut self, id: &str, flag: &str) -> bool {
         let clean = flag.trim().trim_start_matches("FLAG{").trim_end_matches('}');
         let expected: String = self
@@ -535,3 +589,12 @@ fn dirs_next() -> Option<std::path::PathBuf> {
 }
 
 fn egui_extras_note(_cc: &eframe::CreationContext<'_>) {}
+
+fn include_bytes_with_fallback(rel: &str) -> Option<&'static [u8]> {
+    // Embedded at compile time via a generated file
+    crate::challenge_blob::EMBEDDED_CHALLENGES
+        .iter()
+        .find(|(name, _)| *name == rel)
+        .map(|(_, bytes)| *bytes)
+}
+
