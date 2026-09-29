@@ -184,7 +184,12 @@ mod tests {
         let out = app(&dir).export_week_lab("w44").expect("экспорт");
         assert!(out.starts_with(&dir.path().display().to_string()));
         let task = std::fs::read_to_string(Path::new(&out).join("TASK.md")).unwrap();
-        assert!(task.contains("1-day") || task.contains("патч") || task.contains("PSet38"));
+        assert!(
+            task.contains("## Лекции")
+                && task.contains("## Problem Set")
+                && task.contains("PSet38"),
+            "{task}"
+        );
         assert!(app(&dir).export_week_lab("нет-такой").is_err());
     }
 

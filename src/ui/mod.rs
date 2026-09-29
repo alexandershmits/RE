@@ -112,10 +112,11 @@ fn hotkeys(app: &mut AppState, ctx: &egui::Context) {
 }
 
 fn select_tab(app: &mut AppState, tab: Tab) {
-    app.tab = tab;
-    if tab == Tab::Trainer {
+    // повторный клик по «Тренажёру» не должен сбрасывать идущую сессию
+    if tab == Tab::Trainer && app.tab != Tab::Trainer {
         app.quiz = None;
     }
+    app.tab = tab;
 }
 
 /// Результаты фоновых задач приходят в любой вкладке.
@@ -235,7 +236,10 @@ fn import_window(app: &mut AppState, ctx: &egui::Context) {
         });
     if import {
         match app.import_progress(&text) {
-            Ok(()) => app.toast("Прогресс импортирован", ctx),
+            Ok(()) => {
+                apply_theme(ctx, &app.progress); // импортированные тема и размер шрифта вступают в силу сразу
+                app.toast("Прогресс импортирован", ctx)
+            }
             Err(e) => {
                 app.toast(format!("Ошибка: {e}"), ctx);
                 app.import_dialog = Some(text);

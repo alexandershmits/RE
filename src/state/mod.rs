@@ -52,6 +52,8 @@ pub struct AppState {
     storage: Storage,
     dirty: bool,
     last_flush: Option<Instant>,
+    /// Не чаще одной записи за этот интервал (в тестах подменяется).
+    pub(crate) flush_interval: Duration,
     /// Сколько раз прогресс реально записан на диск.
     pub saves_written: u32,
     pub save_error: Option<String>,
@@ -128,6 +130,7 @@ impl AppState {
             storage,
             dirty: restored,
             last_flush: None,
+            flush_interval: FLUSH_INTERVAL,
             saves_written: 0,
             save_error: None,
             startup_notice: loaded.notice,
@@ -213,7 +216,7 @@ impl AppState {
         if !force
             && self
                 .last_flush
-                .is_some_and(|t| t.elapsed() < FLUSH_INTERVAL)
+                .is_some_and(|t| t.elapsed() < self.flush_interval)
         {
             return;
         }
@@ -235,7 +238,7 @@ impl AppState {
             return None;
         }
         Some(match self.last_flush {
-            Some(t) => FLUSH_INTERVAL.saturating_sub(t.elapsed()),
+            Some(t) => self.flush_interval.saturating_sub(t.elapsed()),
             None => Duration::ZERO,
         })
     }
@@ -467,6 +470,7 @@ mod tests {
     fn flush_is_rate_limited_unless_forced() {
         let dir = TempDir::new("ratelimit");
         let mut app = app_in(&dir, 1_000_000);
+        app.flush_interval = Duration::from_secs(3600); // на загруженной машине «2 секунды» могли бы пройти
         app.add_xp(1);
         app.flush(false);
         app.add_xp(1);
@@ -552,7 +556,18 @@ mod tests {
             "один символ — слишком коротко, даже кириллический"
         );
         assert!(app.search_course("несуществующееслово123").is_empty());
-        assert!(app.search_course("  ghidra  ").len() <= 30);
+        let titles = |q: &str| {
+            app.search_course(q)
+                .into_iter()
+                .map(|h| h.title)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            titles("  ghidra  "),
+            titles("ghidra"),
+            "пробелы по краям не влияют"
+        );
+        assert!(titles("ghidra").len() <= 30);
     }
 
     #[test]

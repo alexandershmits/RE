@@ -81,12 +81,14 @@ def main():
                 if mingw:
                     exe = os.path.join(tmp, cid + ".exe")
                     build = subprocess.run([mingw, "-O0", "-w", source, "-o", exe], capture_output=True, text=True)
-                    with open(exe, "rb") as f:
-                        header = f.read(2) if build.returncode == 0 else b""
+                    header = b""
+                    if build.returncode == 0 and os.path.exists(exe):
+                        with open(exe, "rb") as f:
+                            header = f.read(2)
                     if header != b"MZ":
-                        problems.append(f"{cid}: mingw не собрал корректный PE из {cid}.c")
+                        problems.append(f"{cid}: mingw не собрал корректный PE из {cid}.c: {build.stderr.strip()[:200]}")
 
-        # генератор «adversarial loop» из приложения: флаг каждого варианта обязан лежать в собранном бинаре
+    # генератор «adversarial loop» из приложения: флаг каждого варианта обязан лежать в собранном бинаре
         with tempfile.TemporaryDirectory() as gen:
             made = subprocess.run(
                 [sys.executable, os.path.join(ROOT, "tools", "challenge_generator.py"), "all", gen],

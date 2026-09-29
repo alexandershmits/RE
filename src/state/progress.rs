@@ -140,6 +140,9 @@ impl Progress {
         } else {
             1.0
         };
+        for level in self.card_levels.values_mut() {
+            *level = (*level).min(5);
+        }
         if self.xp_history.len() > MAX_XP_HISTORY {
             let excess = self.xp_history.len() - MAX_XP_HISTORY;
             self.xp_history.drain(..excess);
@@ -160,8 +163,23 @@ impl Progress {
                 self.rubric_done.insert(i);
             }
         }
-        // старые рабочие сессии писали в «ставки» служебные записи `work:*`
+        // старые рабочие сессии писали в «ставки» служебные записи `work:<id>`: XP за них уже выдан
+        let tickets: Vec<String> = self
+            .challenge_bets
+            .keys()
+            .filter(|k| k.starts_with("work:"))
+            .cloned()
+            .collect();
+        self.xp_awarded.extend(tickets);
         self.challenge_bets.retain(|k, _| !k.starts_with("work:"));
+        // v1 не хранила ошибки отдельно: незакрытые = отвечены, но ни разу не верно
+        let unsolved: Vec<String> = self
+            .quiz_answers
+            .keys()
+            .filter(|id| !self.quiz_correct.contains(*id))
+            .cloned()
+            .collect();
+        self.mistakes.extend(unsolved);
         // уже полученный XP нельзя получить повторно
         for id in &self.weeks_done {
             self.xp_awarded.insert(format!("week:{id}"));
@@ -195,7 +213,9 @@ mod tests {
     fn v1_file_is_migrated_without_double_paying_xp() {
         let v1 = r#"{
             "weeks_done": ["w0"], "psets_done": ["w0:0"], "xp": 100,
-            "lab_steps_done": ["w0:0", "rubric:2"], "theme": "light", "font_scale": 0.0
+            "lab_steps_done": ["w0:0", "rubric:2"], "theme": "light", "font_scale": 0.0,
+            "quiz_answers": {"q1": 0, "q2": 1}, "quiz_correct": ["q1"],
+            "challenge_bets": {"work:lv1a": "гипотез: 2", "lv1b": "xor"}, "card_levels": {"quiz:q2": 255}
         }"#;
         let mut p: Progress = serde_json::from_str(v1).unwrap();
         assert_eq!(p.schema, 1, "файл без поля schema — это v1");
@@ -207,6 +227,21 @@ mod tests {
             assert!(p.xp_awarded.contains(key), "{key}");
         }
         assert_eq!((p.xp, p.theme.as_str(), p.font_scale), (100, "light", 1.0));
+        assert!(
+            p.xp_awarded.contains("work:lv1a"),
+            "закрытый тикет не должен заплатить второй раз"
+        );
+        assert_eq!(
+            p.challenge_bets.keys().collect::<Vec<_>>(),
+            ["lv1b"],
+            "служебные «ставки» work:* убраны"
+        );
+        assert_eq!(
+            p.mistakes,
+            BTreeSet::from(["q2".to_string()]),
+            "ошибки v1 становятся карточками"
+        );
+        assert_eq!(p.card_levels["quiz:q2"], 5, "уровень карточки ограничен");
     }
 
     #[test]

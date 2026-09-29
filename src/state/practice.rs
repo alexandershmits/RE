@@ -65,16 +65,12 @@ impl AppState {
         self.mark_dirty();
     }
 
-    /// Три модуля с наибольшим числом невыправленных ошибок.
+    /// Три модуля с наибольшим числом невыправленных ошибок (в квизе или на re-exam), исправленных верным ответом — не считаются.
     pub fn weak_topics(&self) -> Vec<(String, usize)> {
         let mut wrong: BTreeMap<u8, usize> = BTreeMap::new();
         for q in &self.curriculum.quizzes {
-            let missed = self
-                .progress
-                .quiz_answers
-                .get(&q.id)
-                .is_some_and(|&sel| sel != q.correct);
-            if missed && !self.progress.quiz_correct.contains(&q.id) {
+            if self.progress.mistakes.contains(&q.id) && !self.progress.quiz_correct.contains(&q.id)
+            {
                 *wrong.entry(q.module).or_default() += 1;
             }
         }
@@ -166,7 +162,7 @@ impl AppState {
     pub fn review_card(&mut self, id: &str, known: bool, today: u64) {
         let level = self.card_level(id);
         let new_level = if known {
-            (level + 1).min(5)
+            level.saturating_add(1).min(5)
         } else {
             level.saturating_sub(1)
         };
@@ -365,9 +361,13 @@ impl AppState {
         };
     }
 
-    /// Тикет можно закрыть: есть гипотеза и достаточно полный отчёт.
+    /// Тикет можно закрыть: пройдены триаж и статика, есть гипотеза и достаточно полный отчёт.
     pub fn work_can_finish(&self) -> bool {
-        self.work.report_completeness() >= WORK_MIN_COMPLETENESS && !self.work.hypotheses.is_empty()
+        let done = |stage: &str| self.work.stages_done.iter().any(|s| s == stage);
+        self.work.report_completeness() >= WORK_MIN_COMPLETENESS
+            && !self.work.hypotheses.is_empty()
+            && done("triage")
+            && done("static")
     }
 
     /// Закрывает тикет и возвращает итоговое сообщение. XP за тикет платится один раз.
@@ -376,7 +376,7 @@ impl AppState {
             return String::new();
         }
         if !self.work_can_finish() {
-            return "Тикет нельзя закрыть: нужна хотя бы одна гипотеза и 3 заполненных пункта отчёта.".into();
+            return "Тикет нельзя закрыть: отметьте этапы «триаж» и «статика», запишите гипотезу и заполните 3 пункта отчёта.".into();
         }
         let seconds = now.saturating_sub(self.work.started_unix);
         let completeness = self.work.report_completeness();
@@ -559,6 +559,11 @@ mod tests {
             app.curriculum.quizzes.len() - 8
         );
         assert_eq!(app.progress.last_reexam_day, Some(20_000));
+        let weak: usize = app.weak_topics().iter().map(|(_, n)| n).sum();
+        assert!(
+            (3..=8).contains(&weak),
+            "ошибки re-exam должны быть в слабых темах (топ-3 модуля): {weak}"
+        );
     }
 
     #[test]
@@ -611,8 +616,12 @@ mod tests {
         fill_report(&mut app, 3);
         assert!(!app.work_can_finish(), "без гипотезы тикет не закрыть");
         app.work.hypotheses.push("проверка через strcmp".into());
-        assert!(app.work_can_finish());
+        assert!(
+            !app.work_can_finish(),
+            "без триажа и статики тикет не закрыть"
+        );
         app.work.stages_done = vec!["triage".into(), "static".into(), "dynamic".into()];
+        assert!(app.work_can_finish());
         let msg = app.finish_work_session(1_130);
         assert!(
             msg.contains("за 130 сек") && msg.contains("+30 XP"),
@@ -627,6 +636,7 @@ mod tests {
             active: true,
             challenge_id: id,
             started_unix: 2_000,
+            stages_done: vec!["triage".into(), "static".into()],
             ..WorkSession::new()
         };
         fill_report(&mut app, 8);
@@ -646,6 +656,7 @@ mod tests {
         app.start_work_session(0, 2);
         fill_report(&mut app, 8);
         app.work.hypotheses.push("x".into());
+        app.work.stages_done = vec!["triage".into(), "static".into()];
         assert!(app.finish_work_session(500).contains("+50 XP"));
     }
 

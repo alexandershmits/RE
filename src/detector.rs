@@ -93,7 +93,7 @@ pub fn analyze(p: &Progress, days_away: u64) -> Vec<Finding> {
     }
 
     // 5. ХРАНИЛИЩЕ КАРТОЧЕК: карточки не используются при ошибках в квизах
-    if quizzes_done >= 10 && p.card_levels.is_empty() {
+    if quizzes_done >= 10 && p.card_due.is_empty() {
         out.push(Finding {
             severity: Severity::Info,
             title: "Флеш-карточки не задействованы".into(),

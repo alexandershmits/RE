@@ -267,7 +267,10 @@ fn data_transfer(app: &mut AppState, ui: &mut egui::Ui, ctx: &egui::Context) {
         }
         if ui.button("Импорт профиля ← re50-profile.json").clicked() {
             match app.import_profile_file() {
-                Ok(msg) => app.toast(msg, ctx),
+                Ok(msg) => {
+                    super::apply_theme(ctx, &app.progress);
+                    app.toast(msg, ctx)
+                }
                 Err(e) => app.toast(format!("Ошибка: {e}"), ctx),
             }
         }

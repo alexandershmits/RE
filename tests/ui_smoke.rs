@@ -38,8 +38,9 @@ fn warning_texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
         match shape {
             egui::epaint::Shape::Text(t) => {
                 let text = t.galley.text();
-                if text.contains("First use of widget ID")
-                    || text.contains("Second use of widget ID")
+                if ["First use of", "Second use of", "Double use of"]
+                    .iter()
+                    .any(|w| text.contains(w))
                 {
                     out.push(text.to_string());
                 }
@@ -338,5 +339,25 @@ fn every_character_has_a_glyph() {
     assert!(
         plain('→') && plain('▶') && plain('🩸') && plain('я'),
         "основные символы интерфейса должны рисоваться прежде всего пропорциональным шрифтом"
+    );
+}
+
+/// Положительный контроль: детектор действительно видит совпадение идентификаторов
+/// (без него тест на «нет предупреждений» мог бы проходить вхолостую).
+#[test]
+fn id_clash_detector_sees_duplicate_widgets() {
+    let ctx = context(false);
+    let input = RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(600.0, 400.0))),
+        ..RawInput::default()
+    };
+    let mut output = ctx.run_ui(input, |ui| {
+        ui.collapsing("одинаково", |ui| ui.label("a"));
+        ui.collapsing("одинаково", |ui| ui.label("b"));
+    });
+    output.textures_delta.clear();
+    assert!(
+        !warning_texts(&output.shapes).is_empty(),
+        "детектор не заметил совпадающие id"
     );
 }

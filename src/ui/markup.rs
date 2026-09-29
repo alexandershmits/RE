@@ -158,26 +158,39 @@ mod tests {
         assert_eq!(parse("Ъ**ж**ё[я](https://я.рф)ю").len(), 5);
     }
 
+    /// Обратная сборка: разметка → исходный текст.
+    fn to_source(spans: &[Span]) -> String {
+        spans
+            .iter()
+            .map(|s| match s {
+                Span::Text(t) => (*t).to_string(),
+                Span::Bold(t) => format!("**{t}**"),
+                Span::Italic(t) => format!("*{t}*"),
+                Span::Code(t) => format!("`{t}`"),
+                Span::Link { label, url } => format!("[{label}]({url})"),
+            })
+            .collect()
+    }
+
     #[test]
-    fn course_strings_never_lose_visible_text() {
+    fn parsing_is_lossless_for_all_course_text() {
         let c = crate::curriculum::Curriculum::load();
+        let mut with_markup = 0;
         for w in &c.weeks {
             for line in w.lectures.iter().chain(w.case.iter()) {
-                let visible: usize = parse(line)
-                    .iter()
-                    .map(|s| match s {
-                        Span::Text(t) | Span::Bold(t) | Span::Italic(t) | Span::Code(t) => {
-                            t.chars().count()
-                        }
-                        Span::Link { label, .. } => label.chars().count(),
-                    })
-                    .sum();
-                assert!(
-                    visible > 0 && visible <= line.chars().count(),
-                    "{}: {line}",
+                let spans = parse(line);
+                assert_eq!(
+                    to_source(&spans),
+                    *line,
+                    "{}: разбор потерял или исказил текст",
                     w.id
                 );
+                with_markup += spans.iter().filter(|s| !matches!(s, Span::Text(_))).count();
             }
         }
+        assert!(
+            with_markup >= 20,
+            "в курсе должна быть разметка (ссылки, жирный, курсив): {with_markup}"
+        );
     }
 }

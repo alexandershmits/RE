@@ -137,6 +137,14 @@ pub fn apply(ctx: &egui::Context, progress: &Progress) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, MutexGuard};
+
+    /// `apply` меняет глобальный флаг темы, поэтому тесты, которые его читают или пишут, идут по очереди.
+    static THEME: Mutex<()> = Mutex::new(());
+
+    fn exclusive() -> MutexGuard<'static, ()> {
+        THEME.lock().unwrap_or_else(|e| e.into_inner())
+    }
 
     fn luminance(c: Color32) -> f64 {
         let lin = |v: u8| {
@@ -155,9 +163,9 @@ mod tests {
         (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
     }
 
-    /// Единственный тест, меняющий глобальный флаг темы: проверяет обе темы последовательно.
     #[test]
     fn palette_is_readable_in_both_themes() {
+        let _guard = exclusive();
         for light in [false, true] {
             let ctx = egui::Context::default();
             let progress = Progress {
@@ -218,6 +226,7 @@ mod tests {
 
     #[test]
     fn applying_twice_does_not_compound_the_font_scale() {
+        let _guard = exclusive();
         // регресс: apply_style брал текущий стиль и умножал размеры ещё раз
         let ctx = egui::Context::default();
         let progress = Progress {
@@ -236,6 +245,7 @@ mod tests {
 
     #[test]
     fn font_scale_is_clamped() {
+        let _guard = exclusive();
         let ctx = egui::Context::default();
         let base = egui::Style::default().text_styles[&egui::TextStyle::Body].size;
         apply(

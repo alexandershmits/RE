@@ -115,6 +115,8 @@ pub struct Loaded<T> {
 pub struct Storage {
     file: Option<PathBuf>,
     last_written: Option<String>,
+    /// Файл есть, но прочитать его не удалось: не записываем поверх, чтобы не затереть данные.
+    read_only: bool,
 }
 
 impl Storage {
@@ -122,6 +124,7 @@ impl Storage {
         Storage {
             file,
             last_written: None,
+            read_only: false,
         }
     }
 
@@ -133,14 +136,23 @@ impl Storage {
         path.with_file_name(format!("{name}{suffix}"))
     }
 
-    /// Читает основной файл; при порче откладывает его в `.corrupt` и берёт свежий валидный бэкап.
-    /// Исправный основной файл ротирует бэкапы (раз за запуск).
+    /// Читает основной файл; при порче (не JSON или не UTF-8) откладывает его в `.corrupt` и берёт свежий
+    /// валидный бэкап. Если файл существует, но недоступен (права, блокировка), он остаётся нетронутым, а
+    /// сохранение отключается. Исправный основной файл ротирует бэкапы (раз за запуск).
     pub fn load<T: DeserializeOwned>(&mut self) -> Loaded<T> {
         let Some(path) = self.file.clone() else {
             return Loaded {
                 value: None,
                 notice: None,
             };
+        };
+        let quarantine = |reason: String| {
+            let target = Self::sibling(&path, ".corrupt");
+            let _ = std::fs::rename(&path, &target);
+            format!(
+                "Файл прогресса повреждён ({reason}); он сохранён как {}",
+                target.display()
+            )
         };
         let mut notice = None;
         match std::fs::read_to_string(&path) {
@@ -152,17 +164,18 @@ impl Storage {
                         notice: None,
                     };
                 }
-                Err(e) => {
-                    let quarantine = Self::sibling(&path, ".corrupt");
-                    let _ = std::fs::rename(&path, &quarantine);
-                    notice = Some(format!(
-                        "Файл прогресса повреждён ({e}); он сохранён как {}",
-                        quarantine.display()
-                    ));
-                }
+                Err(e) => notice = Some(quarantine(e.to_string())),
             },
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => notice = Some(format!("Не удалось прочитать прогресс: {e}")),
+            Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
+                notice = Some(quarantine(format!("это не UTF-8: {e}")));
+            }
+            Err(e) => {
+                self.read_only = true;
+                notice = Some(format!(
+                    "Не удалось прочитать прогресс: {e}. Сохранение отключено, чтобы не затереть файл."
+                ));
+            }
         }
         for i in 1..=BACKUPS {
             let backup = Self::sibling(&path, &format!(".bak{i}"));
@@ -204,6 +217,9 @@ impl Storage {
 
     /// Атомарная запись (tmp + rename). `Ok(false)` — содержимое не изменилось, диск не тронут.
     pub fn save<T: Serialize>(&mut self, value: &T) -> Result<bool, String> {
+        if self.read_only {
+            return Err("сохранение отключено: файл прогресса не удалось прочитать".into());
+        }
         let Some(path) = &self.file else {
             return Ok(false);
         };
@@ -292,6 +308,47 @@ mod tests {
             "{notice}"
         );
         assert!(dir.path().join("progress.json.corrupt").exists());
+    }
+
+    #[test]
+    fn non_utf8_file_is_quarantined_not_overwritten() {
+        // например, JSON, пересохранённый Блокнотом Windows в UTF-16
+        let dir = TempDir::new("utf16");
+        let mut s = storage(&dir);
+        s.save(&Doc { n: 1 }).unwrap();
+        s.load::<Doc>(); // bak1 = {n:1}
+        let mut utf16 = vec![0xFF, 0xFE]; // BOM, как у Блокнота
+        utf16.extend("{\"n\": 2}".encode_utf16().flat_map(|u| u.to_le_bytes()));
+        std::fs::write(dir.path().join(FILE_NAME), &utf16).unwrap();
+
+        let mut fresh = storage(&dir);
+        let loaded = fresh.load::<Doc>();
+        assert_eq!(loaded.value, Some(Doc { n: 1 }));
+        assert!(loaded.notice.is_some_and(|n| n.contains("UTF-8")));
+        assert_eq!(
+            std::fs::read(dir.path().join("progress.json.corrupt")).unwrap(),
+            utf16,
+            "исходные байты сохранены"
+        );
+        assert!(fresh.save(&Doc { n: 3 }).is_ok());
+    }
+
+    #[test]
+    fn unreadable_file_disables_saving_instead_of_clobbering() {
+        // каталог на месте файла: чтение падает не из-за содержимого (IsADirectory / PermissionDenied)
+        let dir = TempDir::new("unreadable");
+        std::fs::create_dir(dir.path().join(FILE_NAME)).unwrap();
+        let mut s = storage(&dir);
+        let loaded = s.load::<Doc>();
+        assert!(loaded.value.is_none());
+        assert!(loaded
+            .notice
+            .is_some_and(|n| n.contains("Сохранение отключено")));
+        assert!(s.save(&Doc { n: 1 }).unwrap_err().contains("отключено"));
+        assert!(
+            dir.path().join(FILE_NAME).is_dir(),
+            "то, что лежит на месте файла, не тронуто"
+        );
     }
 
     #[test]

@@ -196,7 +196,7 @@ fn ticket(app: &mut AppState, ui: &mut egui::Ui, ctx: &egui::Context) {
             let needed = WORK_MIN_COMPLETENESS / 10;
             ui.label(
                 RichText::new(format!(
-                    "Нужна хотя бы одна гипотеза и {needed} заполненных пункта отчёта."
+                    "Нужны этапы «триаж» и «статика», хотя бы одна гипотеза и {needed} заполненных пункта отчёта."
                 ))
                 .weak()
                 .size(12.0),

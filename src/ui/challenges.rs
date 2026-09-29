@@ -20,7 +20,7 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
     egui::CentralPanel::default().show(ui, |ui| {
         ui.heading("🚩 Встроенные челленджи");
         generator_row(app, ui, &ctx);
-        ui.label(RichText::new("Та же логика проверки, но пароль, ключ и маска рандомизируются при каждой генерации: запомнить ответ из райтапа невозможно — работает только понимание. Нужны Python 3 и gcc (для .exe — mingw).").weak().size(12.0));
+        ui.label(RichText::new("Та же логика проверки, но пароль, ключ и маска рандомизируются при каждой генерации: запомнить ответ из райтапа невозможно — работает только понимание. Нужны Python 3 и gcc; варианты собираются под Linux (ELF).").weak().size(12.0));
         ui.add_space(6.0);
         ui.label(RichText::new(format!(
             "{} учебных crackmes (Linux x86-64 ELF и Windows PE), собранных специально для курса. Экспортируйте бинари в лабу, решите в Ghidra/x64dbg и введите флаг — приложение проверит. +{} XP за флаг, подсказки внутри.",

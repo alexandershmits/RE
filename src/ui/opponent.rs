@@ -101,6 +101,7 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
             }
             if ui.button("➡ Следующий вопрос").clicked() {
                 app.opponent.q_index = (app.opponent.q_index + 1) % questions.len();
+                app.opponent.llm_job = None; // ответ модели на прежний вопрос больше не нужен
                 app.opponent.answer.clear();
                 app.opponent.verdict = None;
                 app.opponent.llm_reply = None;
