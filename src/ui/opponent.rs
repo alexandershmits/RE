@@ -3,9 +3,9 @@ use eframe::egui::{self, RichText};
 use super::{ACCENT, GOOD, WARN};
 use crate::state::AppState;
 
-pub(super) fn show(app: &mut AppState, ctx: &egui::Context) {
+pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
     use crate::opponent;
-    egui::CentralPanel::default().show(ctx, |ui| {
+    egui::CentralPanel::default().show(ui, |ui| {
         ui.heading(RichText::new("🥋 Socratic-оппонент").color(ACCENT));
         ui.label("Атакует твои объяснения: не даёт ответов — задает каверзные вопросы. Пересказ и «так принято» здесь не работают: только понимание. Лучший суррогат ментора в solo-обучении.");
         ui.add_space(10.0);

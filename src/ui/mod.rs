@@ -24,7 +24,8 @@ mod sims;
 mod trainer;
 mod work;
 
-pub fn run(app: &mut AppState, ctx: &egui::Context) {
+pub fn run(app: &mut AppState, root: &mut egui::Ui) {
+    let ctx = &root.ctx().clone();
     // Горячие клавиши: Ctrl+K — фокус поиска, Ctrl+1..9 — вкладки, Ctrl+J — журнал
     ctx.input(|i| {
         if i.modifiers.command {
@@ -138,7 +139,7 @@ pub fn run(app: &mut AppState, ctx: &egui::Context) {
         ctx.request_repaint_after(std::time::Duration::from_millis(500));
     }
 
-    egui::TopBottomPanel::top("topbar").show(ctx, |ui| {
+    egui::Panel::top("topbar").show(root, |ui| {
         ui.add_space(6.0);
         ui.horizontal(|ui| {
             ui.heading(RichText::new("🩸 RE-50").color(ACCENT).size(22.0));
@@ -206,68 +207,66 @@ pub fn run(app: &mut AppState, ctx: &egui::Context) {
         ui.separator();
     });
 
-    egui::SidePanel::left("nav")
-        .exact_width(190.0)
-        .show(ctx, |ui| {
-            ui.add_space(8.0);
-            for (tab, icon, label) in [
-                (Tab::Dashboard, "🏠", "Дашборд"),
-                (Tab::Course, "📚", "Курс"),
-                (Tab::Trainer, "🎯", "Тренажёр"),
-                (Tab::Achievements, "🏅", "Ачивки"),
-                (Tab::Resources, "🔗", "Ресурсы"),
-                (Tab::Journal, "📓", "Журнал"),
-                (Tab::Cards, "🃏", "Карточки"),
-                (Tab::Interview, "🎤", "Интервью"),
-                (Tab::Rubric, "📋", "Rubric отчёта"),
-                (Tab::Diagrams, "🗺", "Схемы"),
-                (Tab::Placement, "🧪", "Тест входа"),
-                (Tab::Sims, "⚙️", "Симуляторы"),
-                (Tab::Drills, "🔁", "Дриллы (89)"),
-                (Tab::Challenges, "🚩", "Челленджи (15)"),
-                (Tab::Reexam, "🎓", "Re-certification"),
-                (Tab::Opponent, "🥋", "Оппонент"),
-                (Tab::Work, "💼", "Рабочая сессия"),
-            ] {
-                let selected = app.tab == tab;
-                if ui
-                    .selectable_label(selected, format!("{icon}  {label}"))
-                    .clicked()
-                {
-                    app.tab = tab;
-                    if app.tab == Tab::Trainer {
-                        app.quiz = None;
-                    }
+    egui::Panel::left("nav").exact_size(190.0).show(root, |ui| {
+        ui.add_space(8.0);
+        for (tab, icon, label) in [
+            (Tab::Dashboard, "🏠", "Дашборд"),
+            (Tab::Course, "📚", "Курс"),
+            (Tab::Trainer, "🎯", "Тренажёр"),
+            (Tab::Achievements, "🏅", "Ачивки"),
+            (Tab::Resources, "🔗", "Ресурсы"),
+            (Tab::Journal, "📓", "Журнал"),
+            (Tab::Cards, "🃏", "Карточки"),
+            (Tab::Interview, "🎤", "Интервью"),
+            (Tab::Rubric, "📋", "Rubric отчёта"),
+            (Tab::Diagrams, "🗺", "Схемы"),
+            (Tab::Placement, "🧪", "Тест входа"),
+            (Tab::Sims, "⚙️", "Симуляторы"),
+            (Tab::Drills, "🔁", "Дриллы (89)"),
+            (Tab::Challenges, "🚩", "Челленджи (15)"),
+            (Tab::Reexam, "🎓", "Re-certification"),
+            (Tab::Opponent, "🥋", "Оппонент"),
+            (Tab::Work, "💼", "Рабочая сессия"),
+        ] {
+            let selected = app.tab == tab;
+            if ui
+                .selectable_label(selected, format!("{icon}  {label}"))
+                .clicked()
+            {
+                app.tab = tab;
+                if app.tab == Tab::Trainer {
+                    app.quiz = None;
                 }
             }
-            ui.separator();
-            ui.label(RichText::new("Правила курса:").weak());
-            ScrollArea::vertical().show(ui, |ui| {
-                for r in &app.curriculum.course.rules {
-                    ui.label(RichText::new(format!("• {r}")).size(11.0).weak());
-                }
-            });
+        }
+        ui.separator();
+        ui.label(RichText::new("Правила курса:").weak());
+        ScrollArea::vertical().show(ui, |ui| {
+            for r in &app.curriculum.course.rules {
+                ui.label(RichText::new(format!("• {r}")).size(11.0).weak());
+            }
         });
+    });
 
     let tab = std::mem::take(&mut app.tab);
     match tab {
-        Tab::Dashboard => dashboard::show(app, ctx),
-        Tab::Course => course::show(app, ctx),
-        Tab::Trainer => trainer::show(app, ctx),
-        Tab::Achievements => achievements::show(app, ctx),
-        Tab::Resources => resources::show(app, ctx),
-        Tab::Journal => journal::show(app, ctx),
-        Tab::Cards => cards::show(app, ctx),
-        Tab::Interview => interview::show(app, ctx),
-        Tab::Rubric => rubric::show(app, ctx),
-        Tab::Diagrams => diagrams::show(app, ctx),
-        Tab::Placement => placement::show(app, ctx),
-        Tab::Sims => sims::show(app, ctx),
-        Tab::Drills => drills::show(app, ctx),
-        Tab::Challenges => challenges::show(app, ctx),
-        Tab::Reexam => reexam::show(app, ctx),
-        Tab::Opponent => opponent::show(app, ctx),
-        Tab::Work => work::show(app, ctx),
+        Tab::Dashboard => dashboard::show(app, root),
+        Tab::Course => course::show(app, root),
+        Tab::Trainer => trainer::show(app, root),
+        Tab::Achievements => achievements::show(app, root),
+        Tab::Resources => resources::show(app, root),
+        Tab::Journal => journal::show(app, root),
+        Tab::Cards => cards::show(app, root),
+        Tab::Interview => interview::show(app, root),
+        Tab::Rubric => rubric::show(app, root),
+        Tab::Diagrams => diagrams::show(app, root),
+        Tab::Placement => placement::show(app, root),
+        Tab::Sims => sims::show(app, root),
+        Tab::Drills => drills::show(app, root),
+        Tab::Challenges => challenges::show(app, root),
+        Tab::Reexam => reexam::show(app, root),
+        Tab::Opponent => opponent::show(app, root),
+        Tab::Work => work::show(app, root),
     }
     app.tab = tab;
 

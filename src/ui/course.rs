@@ -3,10 +3,11 @@ use eframe::egui::{self, RichText, ScrollArea};
 use super::{ACCENT, GOOD, WARN};
 use crate::state::AppState;
 
-pub(super) fn show(app: &mut AppState, ctx: &egui::Context) {
-    egui::SidePanel::right("week_list")
-        .exact_width(240.0)
-        .show(ctx, |ui| {
+pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
+    let ctx = &ui.ctx().clone();
+    egui::Panel::right("week_list")
+        .exact_size(240.0)
+        .show(ui, |ui| {
             ui.heading("Недели");
             ui.separator();
             ScrollArea::vertical().id_salt("weeklist").show(ui, |ui| {
@@ -24,7 +25,7 @@ pub(super) fn show(app: &mut AppState, ctx: &egui::Context) {
             });
         });
 
-    egui::CentralPanel::default().show(ctx, |ui| {
+    egui::CentralPanel::default().show(ui, |ui| {
         let Some(w) = app.curriculum.weeks.get(app.selected_week) else {
             return;
         };

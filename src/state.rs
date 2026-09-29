@@ -712,7 +712,7 @@ impl AppState {
 
     /// Применить тему/шрифт/масштаб из настроек.
     pub fn apply_style(&self, ctx: &egui::Context) {
-        let mut style = (*ctx.style()).clone();
+        let mut style = (*ctx.global_style()).clone();
         let light = self.progress.theme == "light";
         style.visuals.dark_mode = !light;
         if light {
@@ -732,7 +732,7 @@ impl AppState {
         for font_id in style.text_styles.values_mut() {
             font_id.size = (font_id.size * scale).clamp(8.0, 48.0);
         }
-        ctx.set_style(style);
+        ctx.set_global_style(style);
     }
 
     pub fn save(&mut self) {
@@ -1132,8 +1132,8 @@ impl AppState {
 pub use eframe::egui;
 
 impl eframe::App for AppState {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        crate::ui::run(self, ctx);
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        crate::ui::run(self, ui);
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {

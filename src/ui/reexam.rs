@@ -2,8 +2,8 @@ use eframe::egui::{self, RichText};
 
 use super::{ACCENT, GOOD, WARN};
 
-pub(super) fn show(app: &mut crate::state::AppState, ctx: &egui::Context) {
-    egui::CentralPanel::default().show(ctx, |ui| {
+pub(super) fn show(app: &mut crate::state::AppState, ui: &mut egui::Ui) {
+    egui::CentralPanel::default().show(ui, |ui| {
         ui.heading(RichText::new("🎓 Monthly Re-certification").color(ACCENT));
         ui.add_space(6.0);
         ui.label("Раз в 30 дней приложение устраивает внезапный экзамен: 10 случайных задач из пройденного материала. Порог — 70%. Провал → темы возвращаются в слабые.");

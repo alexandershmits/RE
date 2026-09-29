@@ -3,8 +3,8 @@ use eframe::egui::{self, RichText};
 use super::{ACCENT, GOOD};
 use crate::state::AppState;
 
-pub(super) fn show(app: &mut AppState, ctx: &egui::Context) {
-    egui::CentralPanel::default().show(ctx, |ui| {
+pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
+    egui::CentralPanel::default().show(ui, |ui| {
         ui.heading("🧪 Placement: с какой недели вам стартовать?");
         ui.label(RichText::new("20 вопросов по базам. Не угадывайте — цель найти правильную ТОЧКУ ВХОДА, а не набить балл.").weak());
         ui.separator();

@@ -3,8 +3,8 @@ use eframe::egui::{self, RichText, ScrollArea};
 use super::{ACCENT, GOOD, WARN};
 use crate::state::AppState;
 
-pub(super) fn show(app: &mut AppState, ctx: &egui::Context) {
-    egui::CentralPanel::default().show(ctx, |ui| {
+pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
+    egui::CentralPanel::default().show(ui, |ui| {
         if app.sim.which == 3 {
             sims_generative(app, ui);
             return;

@@ -3,8 +3,9 @@ use eframe::egui::{self, RichText};
 use super::{ACCENT, GOOD};
 use crate::state::{AppState, QuizSession};
 
-pub(super) fn show(app: &mut AppState, ctx: &egui::Context) {
-    egui::CentralPanel::default().show(ctx, |ui| {
+pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
+    let ctx = &ui.ctx().clone();
+    egui::CentralPanel::default().show(ui, |ui| {
         if app.quiz.is_none() {
             ui.heading("🎯 Тренажёр-квиз");
             ui.label("Проверь себя: понимание или имитация? Выбери модуль и начни сессию.");

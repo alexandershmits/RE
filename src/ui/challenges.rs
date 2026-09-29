@@ -3,8 +3,9 @@ use eframe::egui::{self, RichText, ScrollArea};
 use super::{ACCENT, GOOD, WARN};
 use crate::state::AppState;
 
-pub(super) fn show(app: &mut AppState, ctx: &egui::Context) {
-    egui::CentralPanel::default().show(ctx, |ui| {
+pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
+    let ctx = &ui.ctx().clone();
+    egui::CentralPanel::default().show(ui, |ui| {
         ui.heading("🚩 Встроенные челленджи");
         // Adversarial loop: генерация нового варианта
         ui.horizontal(|ui| {

@@ -3,8 +3,9 @@ use eframe::egui::{self, RichText};
 use super::{ACCENT, GOOD, WARN};
 use crate::state::AppState;
 
-pub(super) fn show(app: &mut AppState, ctx: &egui::Context) {
-    egui::CentralPanel::default().show(ctx, |ui| {
+pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
+    let ctx = &ui.ctx().clone();
+    egui::CentralPanel::default().show(ui, |ui| {
         ui.heading(RichText::new("💼 Рабочая сессия аналитика").color(ACCENT));
         ui.label("Симуляция реального процесса: приходит тикет с бинарём — ты ведёшь его от триажа до отчёта. Приложение следит за МЕТОДОЛОГИЕЙ (порядок этапов), временем и полнотой отчёта. Руки работают в настоящих Ghidra/x64dbg на экспортированных файлах — здесь живёт процесс.");
         ui.add_space(8.0);

@@ -3,8 +3,8 @@ use eframe::egui::{self, RichText, ScrollArea};
 use super::{ACCENT, GOOD};
 use crate::state::AppState;
 
-pub(super) fn show(app: &mut AppState, ctx: &egui::Context) {
-    egui::CentralPanel::default().show(ctx, |ui| {
+pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
+    egui::CentralPanel::default().show(ui, |ui| {
         ui.heading("🔁 Дриллы: автоматизм через повторение");
         ui.label(RichText::new("Короткие задачи 30 сек – 3 мин. Адресный дрилл генерирует числа — практикуйтесь бесконечно.").weak());
         ui.separator();

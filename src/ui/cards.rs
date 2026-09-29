@@ -2,8 +2,8 @@ use eframe::egui::{self, RichText};
 
 use crate::state::AppState;
 
-pub(super) fn show(app: &mut AppState, ctx: &egui::Context) {
-    egui::CentralPanel::default().show(ctx, |ui| {
+pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
+    egui::CentralPanel::default().show(ui, |ui| {
         ui.heading("🃏 Карточки (spaced repetition)");
         ui.label(RichText::new("Уровень карточки растёт при ответе «знаю» и падает при «повторить». Интервалы: 1д → 3д → 7д → 21д → 60д.").weak());
         ui.separator();
