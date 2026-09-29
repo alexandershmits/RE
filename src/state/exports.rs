@@ -1,5 +1,6 @@
 //! Экспорт и импорт: профиль, журнал, лабы недель, бинари челленджей.
 
+use super::progress::SCHEMA_VERSION;
 use super::{AppState, Progress};
 use crate::challenge_blob::EMBEDDED_CHALLENGES;
 use crate::util;
@@ -105,6 +106,12 @@ impl AppState {
     pub fn import_progress(&mut self, json: &str) -> Result<(), String> {
         let mut imported: Progress =
             serde_json::from_str(json).map_err(|e| format!("некорректный JSON: {e}"))?;
+        if imported.schema > SCHEMA_VERSION {
+            return Err(format!(
+                "профиль создан более новой версией RE-50 (схема {}, эта версия понимает {SCHEMA_VERSION}): обновите приложение",
+                imported.schema
+            ));
+        }
         imported.sanitize();
         self.flush(true);
         self.storage.rotate_backups();
@@ -138,7 +145,7 @@ impl AppState {
         let mut md = String::from("# RE-50 — Журнал обучения\n\n");
         md.push_str(&format!(
             "Экспортирован: {}\n\n",
-            util::format_day(util::unix_day(util::unix_now()))
+            util::format_day(util::local_day(util::unix_now()))
         ));
         md.push_str(&format!(
             "XP: {} | Недель закрыто: {}\n\n## Журнал\n\n",
@@ -253,6 +260,15 @@ mod tests {
             .import_progress("не json")
             .unwrap_err()
             .contains("некорректный"));
+        assert_eq!(a.progress.xp, 9);
+    }
+
+    #[test]
+    fn profile_from_a_newer_version_is_refused() {
+        let mut a = AppState::in_memory();
+        a.progress.xp = 9;
+        let err = a.import_progress(r#"{"schema": 99, "xp": 1}"#).unwrap_err();
+        assert!(err.contains("более новой") && err.contains("99"), "{err}");
         assert_eq!(a.progress.xp, 9);
     }
 

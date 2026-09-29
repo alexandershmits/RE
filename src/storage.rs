@@ -110,13 +110,28 @@ impl Paths {
 pub struct Loaded<T> {
     pub value: Option<T>,
     pub notice: Option<String>,
+    /// Прочитанное отличается от файла на диске (восстановление из копии, карантин): его надо записать.
+    pub needs_save: bool,
+}
+
+impl<T> Loaded<T> {
+    fn empty() -> Self {
+        Loaded {
+            value: None,
+            notice: None,
+            needs_save: false,
+        }
+    }
 }
 
 pub struct Storage {
     file: Option<PathBuf>,
     last_written: Option<String>,
-    /// Файл есть, но прочитать его не удалось: не записываем поверх, чтобы не затереть данные.
-    read_only: bool,
+    /// Причина, по которой писать нельзя: иначе затрём данные, которых мы не понимаем или которыми
+    /// владеет другое окно.
+    read_only: Option<String>,
+    /// Эксклюзивная блокировка `progress.json.lock`; снимается вместе со `Storage` или при выходе процесса.
+    lock: Option<std::fs::File>,
 }
 
 impl Storage {
@@ -124,7 +139,8 @@ impl Storage {
         Storage {
             file,
             last_written: None,
-            read_only: false,
+            read_only: None,
+            lock: None,
         }
     }
 
@@ -136,49 +152,102 @@ impl Storage {
         path.with_file_name(format!("{name}{suffix}"))
     }
 
+    /// Запрещает запись (например, файл создан более новой версией); `save` вернёт эту причину.
+    pub fn disable_saving(&mut self, reason: impl Into<String>) {
+        self.read_only = Some(reason.into());
+    }
+
+    /// Берёт эксклюзивную блокировку, чтобы второе окно не затёрло прогресс первого. Файловые системы
+    /// без блокировок пропускаются молча. Возвращает сообщение, если блокировка занята.
+    fn acquire_lock(&mut self, path: &Path) -> Option<String> {
+        if self.lock.is_some() {
+            return None;
+        }
+        let lock_path = Self::sibling(path, ".lock");
+        std::fs::create_dir_all(lock_path.parent()?).ok()?;
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(&lock_path)
+            .ok()?;
+        match file.try_lock() {
+            Ok(()) => {
+                self.lock = Some(file);
+                None
+            }
+            Err(std::fs::TryLockError::WouldBlock) => {
+                self.read_only = Some("RE-50 уже открыт в другом окне".into());
+                Some(
+                    "RE-50 уже открыт в другом окне. Чтобы не затереть его прогресс, это окно ничего \
+                     не сохраняет: закройте лишнее и запустите заново."
+                        .into(),
+                )
+            }
+            Err(std::fs::TryLockError::Error(_)) => None,
+        }
+    }
+
     /// Читает основной файл; при порче (не JSON или не UTF-8) откладывает его в `.corrupt` и берёт свежий
     /// валидный бэкап. Если файл существует, но недоступен (права, блокировка), он остаётся нетронутым, а
-    /// сохранение отключается. Исправный основной файл ротирует бэкапы (раз за запуск).
+    /// сохранение отключается. Исправный основной файл ротирует бэкапы (раз за запуск, если он изменился).
     pub fn load<T: DeserializeOwned>(&mut self) -> Loaded<T> {
         let Some(path) = self.file.clone() else {
-            return Loaded {
-                value: None,
-                notice: None,
-            };
+            return Loaded::empty();
         };
+        let lock_notice = self.acquire_lock(&path);
+        let mut loaded = self.read_from_disk::<T>(&path);
+        if let Some(lock) = lock_notice {
+            loaded.notice = Some(match loaded.notice {
+                Some(n) => format!("{n}. {lock}"),
+                None => lock,
+            });
+        }
+        loaded
+    }
+
+    fn read_from_disk<T: DeserializeOwned>(&mut self, path: &Path) -> Loaded<T> {
         let quarantine = |reason: String| {
-            let target = Self::sibling(&path, ".corrupt");
-            let _ = std::fs::rename(&path, &target);
+            let target = Self::sibling(path, ".corrupt");
+            let _ = std::fs::rename(path, &target);
             format!(
                 "Файл прогресса повреждён ({reason}); он сохранён как {}",
                 target.display()
             )
         };
         let mut notice = None;
-        match std::fs::read_to_string(&path) {
+        let mut needs_save = false;
+        match std::fs::read_to_string(path) {
             Ok(text) => match serde_json::from_str::<T>(&text) {
                 Ok(value) => {
-                    self.rotate_backups();
+                    if self.read_only.is_none() {
+                        self.rotate_backups();
+                    }
                     return Loaded {
                         value: Some(value),
                         notice: None,
+                        needs_save: false,
                     };
                 }
-                Err(e) => notice = Some(quarantine(e.to_string())),
+                Err(e) => {
+                    notice = Some(quarantine(e.to_string()));
+                    needs_save = true;
+                }
             },
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
                 notice = Some(quarantine(format!("это не UTF-8: {e}")));
+                needs_save = true;
             }
             Err(e) => {
-                self.read_only = true;
+                self.read_only = Some(format!("файл прогресса не удалось прочитать ({e})"));
                 notice = Some(format!(
                     "Не удалось прочитать прогресс: {e}. Сохранение отключено, чтобы не затереть файл."
                 ));
             }
         }
         for i in 1..=BACKUPS {
-            let backup = Self::sibling(&path, &format!(".bak{i}"));
+            let backup = Self::sibling(path, &format!(".bak{i}"));
             let Ok(text) = std::fs::read_to_string(&backup) else {
                 continue;
             };
@@ -187,23 +256,29 @@ impl Storage {
                     "Прогресс восстановлен из резервной копии {}",
                     backup.display()
                 );
-                let notice = Some(notice.map_or(note.clone(), |n| format!("{n}. {note}")));
                 return Loaded {
                     value: Some(value),
-                    notice,
+                    notice: Some(notice.map_or(note.clone(), |n| format!("{n}. {note}"))),
+                    needs_save: self.read_only.is_none(),
                 };
             }
         }
         Loaded {
             value: None,
             notice,
+            needs_save: needs_save && self.read_only.is_none(),
         }
     }
 
-    /// Сдвигает `bak1..bakN` и кладёт текущий основной файл в `bak1`.
+    /// Сдвигает `bak1..bakN` и кладёт текущий основной файл в `bak1`. Файл, совпадающий с `bak1`,
+    /// пропускается: иначе после нескольких запусков без изменений все копии стали бы одинаковыми.
     pub fn rotate_backups(&self) {
         let Some(path) = &self.file else { return };
-        if !path.exists() {
+        let Ok(current) = std::fs::read(path) else {
+            return;
+        };
+        let bak1 = Self::sibling(path, ".bak1");
+        if std::fs::read(&bak1).is_ok_and(|b| b == current) {
             return;
         }
         for i in (1..BACKUPS).rev() {
@@ -212,13 +287,13 @@ impl Storage {
                 let _ = std::fs::rename(&from, Self::sibling(path, &format!(".bak{}", i + 1)));
             }
         }
-        let _ = std::fs::copy(path, Self::sibling(path, ".bak1"));
+        let _ = std::fs::write(&bak1, current);
     }
 
     /// Атомарная запись (tmp + rename). `Ok(false)` — содержимое не изменилось, диск не тронут.
     pub fn save<T: Serialize>(&mut self, value: &T) -> Result<bool, String> {
-        if self.read_only {
-            return Err("сохранение отключено: файл прогресса не удалось прочитать".into());
+        if let Some(reason) = &self.read_only {
+            return Err(format!("сохранение отключено: {reason}"));
         }
         let Some(path) = &self.file else {
             return Ok(false);
@@ -234,7 +309,9 @@ impl Storage {
             let mut f = std::fs::File::create(&tmp)?;
             f.write_all(json.as_bytes())?;
             f.sync_all()?;
-            std::fs::rename(&tmp, path)
+            std::fs::rename(&tmp, path)?;
+            sync_dir(dir);
+            Ok(())
         };
         write().map_err(|e| {
             let _ = std::fs::remove_file(&tmp);
@@ -244,6 +321,17 @@ impl Storage {
         Ok(true)
     }
 }
+
+/// Сбрасывает на диск запись о переименовании: без этого после сбоя питания новый файл мог бы пропасть.
+#[cfg(unix)]
+fn sync_dir(dir: &Path) {
+    if let Ok(d) = std::fs::File::open(dir) {
+        let _ = d.sync_all();
+    }
+}
+
+#[cfg(not(unix))]
+fn sync_dir(_dir: &Path) {}
 
 #[cfg(test)]
 mod tests {
@@ -296,6 +384,7 @@ mod tests {
         s.save(&Doc { n: 1 }).unwrap();
         s.load::<Doc>(); // ротация: bak1 = {n:1}
         s.save(&Doc { n: 2 }).unwrap();
+        drop(s);
         std::fs::write(dir.path().join(FILE_NAME), "{ битый json").unwrap();
 
         let loaded = storage(&dir).load::<Doc>();
@@ -317,6 +406,7 @@ mod tests {
         let mut s = storage(&dir);
         s.save(&Doc { n: 1 }).unwrap();
         s.load::<Doc>(); // bak1 = {n:1}
+        drop(s); // перезапуск: первое окно закрыто
         let mut utf16 = vec![0xFF, 0xFE]; // BOM, как у Блокнота
         utf16.extend("{\"n\": 2}".encode_utf16().flat_map(|u| u.to_le_bytes()));
         std::fs::write(dir.path().join(FILE_NAME), &utf16).unwrap();
@@ -366,6 +456,63 @@ mod tests {
         assert_eq!(read("progress.json.bak1"), Doc { n: 7 });
         assert_eq!(read("progress.json.bak5"), Doc { n: 3 });
         assert!(!dir.path().join("progress.json.bak6").exists());
+    }
+
+    #[test]
+    fn relaunching_without_changes_keeps_older_backups() {
+        let dir = TempDir::new("rotate-idle");
+        let mut s = storage(&dir);
+        s.save(&Doc { n: 1 }).unwrap();
+        s.load::<Doc>(); // bak1 = {n:1}
+        s.save(&Doc { n: 2 }).unwrap();
+        drop(s);
+        for _ in 0..4 {
+            storage(&dir).load::<Doc>(); // файл не менялся — копии не сдвигаются
+        }
+        let read = |name: &str| std::fs::read_to_string(dir.path().join(name)).unwrap();
+        assert!(read("progress.json.bak1").contains("\"n\": 2"));
+        assert!(
+            read("progress.json.bak2").contains("\"n\": 1"),
+            "старая копия не должна вытесняться одинаковыми"
+        );
+        assert!(!dir.path().join("progress.json.bak3").exists());
+    }
+
+    #[test]
+    fn second_instance_is_read_only_until_the_first_exits() {
+        let dir = TempDir::new("lock");
+        let mut first = storage(&dir);
+        assert!(first.load::<Doc>().notice.is_none());
+        first.save(&Doc { n: 1 }).unwrap();
+
+        let mut second = storage(&dir);
+        let loaded = second.load::<Doc>();
+        assert_eq!(loaded.value, Some(Doc { n: 1 }), "читать можно");
+        assert!(loaded.notice.is_some_and(|n| n.contains("другом окне")));
+        assert!(!loaded.needs_save);
+        let err = second.save(&Doc { n: 2 }).unwrap_err();
+        assert!(err.contains("другом окне"), "{err}");
+        assert!(std::fs::read_to_string(dir.path().join(FILE_NAME))
+            .unwrap()
+            .contains("\"n\": 1"));
+
+        drop((first, second));
+        let mut third = storage(&dir);
+        assert!(
+            third.load::<Doc>().notice.is_none(),
+            "блокировка снимается вместе со Storage"
+        );
+        assert!(third.save(&Doc { n: 3 }).unwrap());
+    }
+
+    #[test]
+    fn disabled_saving_reports_the_reason_and_writes_nothing() {
+        let dir = TempDir::new("disabled");
+        let mut s = storage(&dir);
+        s.disable_saving("файл от будущей версии");
+        let err = s.save(&Doc { n: 1 }).unwrap_err();
+        assert!(err.contains("файл от будущей версии"), "{err}");
+        assert!(!dir.path().join(FILE_NAME).exists());
     }
 
     #[test]

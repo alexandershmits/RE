@@ -21,6 +21,8 @@ import tempfile
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 ASSETS = os.path.join(ROOT, "assets")
 CHALLENGES = os.path.join(ASSETS, "challenges")
+# сколько вариантов каждого шаблона генератора проверяется на решаемость
+GENERATOR_SEEDS = 10
 
 
 def load(path):
@@ -88,20 +90,23 @@ def main():
                     if header != b"MZ":
                         problems.append(f"{cid}: mingw не собрал корректный PE из {cid}.c: {build.stderr.strip()[:200]}")
 
-    # генератор «adversarial loop» из приложения: флаг каждого варианта обязан лежать в собранном бинаре
+        # генератор «adversarial loop» из приложения: каждый вариант проходит self-solve
+        # (верное решение даёт флаг, заведомо неверный ввод — нет)
+        sys.path.insert(0, os.path.join(ROOT, "tools"))
+        import challenge_generator
         with tempfile.TemporaryDirectory() as gen:
+            for template in challenge_generator.TEMPLATES:
+                for seed in range(GENERATOR_SEEDS):
+                    try:
+                        challenge_generator.build(template, gen, seed=seed)
+                    except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+                        problems.append(f"генератор {template}, seed {seed}: {str(e).strip()[:200]}")
             made = subprocess.run(
                 [sys.executable, os.path.join(ROOT, "tools", "challenge_generator.py"), "all", gen],
                 capture_output=True, text=True,
             )
             if made.returncode != 0:
-                problems.append(f"генератор не отработал: {made.stderr.strip()[:200]}")
-            else:
-                for name in sorted(n for n in os.listdir(gen) if n.endswith(".meta.json")):
-                    meta = load(os.path.join(gen, name))
-                    with open(os.path.join(gen, meta["id"]), "rb") as f:
-                        if f"FLAG{{{meta['flag']}}}".encode() not in f.read():
-                            problems.append(f"генератор {meta['id']}: флага нет в бинаре")
+                problems.append(f"генератор (CLI) не отработал: {made.stderr.strip()[:200]}")
 
     checked = len(curriculum["challenges"])
     if problems:

@@ -55,7 +55,7 @@ fn reexam_banner(app: &mut AppState, ui: &mut egui::Ui, today: u64) {
 
 fn time_stats(app: &AppState, ui: &mut egui::Ui, now: u64) {
     let p = &app.progress;
-    let day = util::unix_day(now);
+    let day = util::local_day(now);
     let by_day = |d: u64| p.time_by_day.get(&d.to_string()).copied().unwrap_or(0);
     let last7: u64 = (day.saturating_sub(6)..=day).map(by_day).sum();
     let total: u64 = p.time_by_day.values().sum::<u64>() + p.pending_seconds;

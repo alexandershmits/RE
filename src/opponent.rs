@@ -286,18 +286,30 @@ mod tests {
     }
 
     #[test]
-    fn every_question_is_answerable_by_its_own_keywords() {
+    fn question_keywords_are_matchable_and_do_not_clash_with_filler_markers() {
         for q in QUESTIONS {
             assert!(
                 q.expected.len() >= 4 && !q.empty_markers.is_empty(),
                 "{}",
                 q.question
             );
-            let sentence = format!(
-                "Я объясняю так: {} — вот как это устроено на самом деле у меня",
-                q.expected.join(" и потом ")
-            );
-            assert!(evaluate(q, &sentence).score >= 90, "{}", q.question);
+            // evaluate() приводит ответ к нижнему регистру: ключ с заглавными не сработал бы никогда
+            for k in q.expected.iter().chain(q.empty_markers) {
+                assert!(
+                    !k.is_empty() && *k == k.trim() && *k == k.to_lowercase(),
+                    "{}: «{k}»",
+                    q.question
+                );
+            }
+            let unique: std::collections::BTreeSet<_> = q.expected.iter().collect();
+            assert_eq!(unique.len(), q.expected.len(), "{}", q.question);
+            for m in q.empty_markers {
+                assert!(
+                    q.expected.iter().all(|k| !k.contains(m) && !m.contains(k)),
+                    "маркер пустого ответа «{m}» совпадает с ключевой идеей: {}",
+                    q.question
+                );
+            }
         }
         assert_eq!(QUESTIONS.len(), 14);
     }

@@ -40,6 +40,7 @@ impl<T: Send + 'static> Job<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::mpsc;
     use std::time::{Duration, Instant};
 
     fn wait<T: Send + 'static>(job: &Job<T>) -> JobState<T> {
@@ -57,11 +58,13 @@ mod tests {
     #[test]
     fn result_arrives_without_blocking_the_caller() {
         let ctx = egui::Context::default();
-        let job = Job::spawn(&ctx, || {
-            std::thread::sleep(Duration::from_millis(50));
+        let (release, gate) = mpsc::channel::<()>();
+        let job = Job::spawn(&ctx, move || {
+            gate.recv().expect("тест отпускает задачу");
             21 * 2
         });
         assert_eq!(job.poll(), JobState::Running);
+        release.send(()).unwrap();
         assert_eq!(wait(&job), JobState::Done(42));
     }
 

@@ -4,8 +4,8 @@
 Классификация ответа:
   OK       — HTTP < 400
   BLOCKED  — 401/403/429/999: сайт отказывает ботам, ссылку это не порочит
-  FLAKY    — таймаут, 5xx, обрыв соединения: перепроверьте позже
-  DEAD     — 404/410 или несуществующий домен: ссылку нужно чинить
+  FLAKY    — таймаут, 5xx, обрыв соединения, временный сбой DNS: перепроверьте позже
+  DEAD     — 404/410 или домена не существует (NXDOMAIN): ссылку нужно чинить
 Код возврата 1 только при DEAD.
 
 Использование: python3 tools/check_links.py [--json путь] [--timeout секунд]
@@ -50,7 +50,8 @@ def probe(url, timeout):
                 return "BLOCKED", str(e.code)
             last = str(e.code)  # HEAD часто не поддерживается — пробуем GET
         except urllib.error.URLError as e:
-            if isinstance(e.reason, socket.gaierror):
+            # EAI_AGAIN (нет сети, сбой резолвера) — не приговор ссылке, это FLAKY
+            if isinstance(e.reason, socket.gaierror) and e.reason.errno == socket.EAI_NONAME:
                 return "DEAD", f"домен не найден: {e.reason}"
             last = str(e.reason)
         except (TimeoutError, socket.timeout, ConnectionError, OSError) as e:

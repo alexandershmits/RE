@@ -1,8 +1,13 @@
-//! Время и даты без внешних зависимостей.
+//! Время и даты.
 
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const SECS_PER_DAY: u64 = 86_400;
+
+/// Смещение местного времени от UTC в секундах. Пока не задано — UTC, поэтому тесты не зависят от
+/// часового пояса машины; приложение подставляет настоящее значение при запуске.
+static UTC_OFFSET_SECS: AtomicI64 = AtomicI64::new(0);
 
 /// Текущее время, секунды с Unix-эпохи.
 pub fn unix_now() -> u64 {
@@ -12,9 +17,28 @@ pub fn unix_now() -> u64 {
         .unwrap_or(0)
 }
 
-/// Номер дня (UTC) с Unix-эпохи.
-pub fn unix_day(secs: u64) -> u64 {
-    secs / SECS_PER_DAY
+/// Смещение часового пояса системы от UTC, секунды.
+pub fn system_utc_offset() -> i64 {
+    i64::from(chrono::Local::now().offset().local_minus_utc())
+}
+
+/// С этого момента «сутки» — календарные сутки пользователя. Пояс читается один раз при запуске;
+/// перевод часов посреди сеанса учтётся при следующем запуске.
+pub fn use_local_timezone() {
+    UTC_OFFSET_SECS.store(system_utc_offset(), Ordering::Relaxed);
+}
+
+/// Номер дня с 1970-01-01 для момента `secs` при заданном смещении от UTC.
+pub fn day_at(secs: u64, utc_offset: i64) -> u64 {
+    let local = i64::try_from(secs)
+        .unwrap_or(i64::MAX)
+        .saturating_add(utc_offset);
+    u64::try_from(local.div_euclid(SECS_PER_DAY as i64)).unwrap_or(0)
+}
+
+/// Номер календарного дня (по местному времени) с 1970-01-01.
+pub fn local_day(secs: u64) -> u64 {
+    day_at(secs, UTC_OFFSET_SECS.load(Ordering::Relaxed))
 }
 
 /// Дата (год, месяц, день) по числу дней с 1970-01-01, григорианский календарь.
@@ -64,5 +88,27 @@ mod tests {
         assert_eq!(format_duration(0), "0 мин");
         assert_eq!(format_duration(59 * 60 + 59), "59 мин");
         assert_eq!(format_duration(5_400), "1.5 ч");
+    }
+
+    #[test]
+    fn day_boundary_follows_the_utc_offset() {
+        let midnight_utc = 20_725 * SECS_PER_DAY;
+        assert_eq!(day_at(midnight_utc, 0), 20_725);
+        assert_eq!(day_at(midnight_utc - 1, 0), 20_724);
+        // Москва (UTC+3): 23:30 по UTC — уже следующие сутки
+        assert_eq!(day_at(midnight_utc - 1_800, 3 * 3_600), 20_725);
+        // Нью-Йорк (UTC−4): 01:00 по UTC — ещё вчера
+        assert_eq!(day_at(midnight_utc + 3_600, -4 * 3_600), 20_724);
+        assert_eq!(day_at(0, -12 * 3_600), 0, "до эпохи не уходим");
+        assert_eq!(
+            day_at(u64::MAX, 14 * 3_600),
+            (i64::MAX as u64) / SECS_PER_DAY
+        );
+    }
+
+    #[test]
+    fn system_offset_is_a_real_timezone() {
+        // Только читаем пояс (глобальное смещение не трогаем: остальные тесты считают сутки по UTC).
+        assert!((-14 * 3_600..=14 * 3_600).contains(&system_utc_offset()));
     }
 }

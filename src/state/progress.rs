@@ -267,15 +267,22 @@ mod tests {
     #[test]
     fn serialization_does_not_depend_on_insertion_order() {
         let (mut a, mut b) = (Progress::default(), Progress::default());
-        for k in ["w3", "w1", "w2"] {
-            a.weeks_done.insert(k.into());
+        // 40 ключей: у неупорядоченного множества совпадение порядка случайно почти невозможно
+        for i in 0..40 {
+            a.weeks_done.insert(format!("w{i}"));
+            b.weeks_done.insert(format!("w{}", 39 - i));
         }
-        for k in ["w2", "w3", "w1"] {
-            b.weeks_done.insert(k.into());
-        }
-        assert_eq!(
+        let (ja, jb) = (
             serde_json::to_string(&a).unwrap(),
-            serde_json::to_string(&b).unwrap()
+            serde_json::to_string(&b).unwrap(),
+        );
+        assert_eq!(ja, jb);
+        let mut sorted: Vec<String> = (0..40).map(|i| format!("w{i}")).collect();
+        sorted.sort();
+        let listed = serde_json::to_string(&sorted).unwrap();
+        assert!(
+            ja.contains(&format!("\"weeks_done\":{listed}")),
+            "ключи должны идти по возрастанию"
         );
     }
 

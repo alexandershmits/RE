@@ -430,5 +430,5 @@ fn search_window(app: &mut AppState, ctx: &egui::Context) {
 /// Текущий момент для тех вкладок, которым нужны секунды и номер дня.
 pub(crate) fn now_and_day() -> (u64, u64) {
     let now = util::unix_now();
-    (now, util::unix_day(now))
+    (now, util::local_day(now))
 }

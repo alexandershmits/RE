@@ -42,7 +42,9 @@ pub mod xp {
 
 /// Не чаще одной записи на диск за этот интервал.
 pub const FLUSH_INTERVAL: Duration = Duration::from_secs(2);
-/// Пауза между кадрами длиннее этой считается отсутствием и не идёт в учёт времени.
+/// Сколько результатов возвращает глобальный поиск.
+pub const SEARCH_LIMIT: usize = 30;
+/// Больше этого одна пауза между кадрами в учёт времени не идёт: ушёл, читал без ввода или закрыл крышку.
 pub const IDLE_LIMIT_SECS: u64 = 300;
 
 pub struct AppState {
@@ -93,16 +95,30 @@ pub struct AppState {
 impl AppState {
     /// Прогресс читается из платформенного каталога настроек.
     pub fn load_or_default() -> Self {
+        util::use_local_timezone();
         Self::with_paths(Paths::detect())
     }
 
     pub fn with_paths(paths: Paths) -> Self {
-        Self::build(paths, Arc::new(Curriculum::load()), util::unix_now())
+        let no_config_dir = paths.config_dir.is_none();
+        let mut app = Self::build(paths, Arc::new(Curriculum::load()), util::unix_now());
+        if no_config_dir {
+            app.startup_notice = Some(
+                "Не удалось определить папку для настроек: прогресс не будет сохраняться. \
+                 Задайте переменную RE50_CONFIG_DIR."
+                    .into(),
+            );
+        }
+        app
     }
 
     /// Без диска: ничего не читается и не пишется (тесты, превью).
     pub fn in_memory() -> Self {
-        Self::with_paths(Paths::none())
+        Self::build(
+            Paths::none(),
+            Arc::new(Curriculum::load()),
+            util::unix_now(),
+        )
     }
 
     pub fn with_curriculum(curriculum: Curriculum) -> Self {
@@ -112,12 +128,25 @@ impl AppState {
     pub(crate) fn build(paths: Paths, curriculum: Arc<Curriculum>, now: u64) -> Self {
         let mut storage = Storage::new(paths.progress_file());
         let loaded = storage.load::<Progress>();
-        let restored = loaded.notice.is_some();
+        let mut notice = loaded.notice;
         let mut progress = loaded.value.unwrap_or_default();
+        if progress.schema > progress::SCHEMA_VERSION {
+            storage.disable_saving("файл прогресса создан более новой версией RE-50");
+            let note = format!(
+                "Файл прогресса создан более новой версией RE-50 (схема {}, эта версия понимает {}). \
+                 Обновите приложение: пока сохранение отключено, чтобы ничего не потерять.",
+                progress.schema,
+                progress::SCHEMA_VERSION
+            );
+            notice = Some(match notice {
+                Some(n) => format!("{n}. {note}"),
+                None => note,
+            });
+        }
         progress.sanitize();
         // пауза между запусками не должна попадать в учёт времени
         progress.last_tick = 0;
-        let today = util::unix_day(now);
+        let today = util::local_day(now);
         let days_away = if progress.streak.0 > 0 {
             today.saturating_sub(progress.streak.0)
         } else {
@@ -128,12 +157,12 @@ impl AppState {
             progress,
             paths,
             storage,
-            dirty: restored,
+            dirty: loaded.needs_save,
             last_flush: None,
             flush_interval: FLUSH_INTERVAL,
             saves_written: 0,
             save_error: None,
-            startup_notice: loaded.notice,
+            startup_notice: notice,
             days_away,
             tab: Tab::default(),
             selected_week: 0,
@@ -178,11 +207,11 @@ impl AppState {
     /// Вызывается каждый кадр: учитывает активное время и серию дней.
     pub fn tick(&mut self, now: u64) {
         let p = &mut self.progress;
-        if p.last_tick != 0 && now > p.last_tick && now - p.last_tick <= IDLE_LIMIT_SECS {
-            p.pending_seconds += now - p.last_tick;
+        if p.last_tick != 0 && now > p.last_tick {
+            p.pending_seconds += (now - p.last_tick).min(IDLE_LIMIT_SECS);
         }
         p.last_tick = now;
-        let day = util::unix_day(now);
+        let day = util::local_day(now);
         if p.pending_seconds >= 30 {
             *p.time_by_day.entry(day.to_string()).or_insert(0) += p.pending_seconds;
             p.pending_seconds = 0;
@@ -220,7 +249,7 @@ impl AppState {
         {
             return;
         }
-        self.record_xp_sample(util::unix_day(util::unix_now()));
+        self.record_xp_sample(util::local_day(util::unix_now()));
         match self.storage.save(&self.progress) {
             Ok(written) => {
                 self.saves_written += u32::from(written);
@@ -289,7 +318,7 @@ impl AppState {
 
     // ── поиск ──
 
-    /// Глобальный поиск: недели, лабы, PSet, квизы, челленджи, ресурсы (не более 30 результатов).
+    /// Глобальный поиск: недели, лабы, PSet, квизы, челленджи, ресурсы (не более `SEARCH_LIMIT` результатов).
     pub fn search_course(&self, query: &str) -> Vec<SearchHit> {
         let q = query.trim().to_lowercase();
         if q.chars().count() < 2 {
@@ -362,7 +391,7 @@ impl AppState {
                 );
             }
         }
-        out.truncate(30);
+        out.truncate(SEARCH_LIMIT);
         out
     }
 }
@@ -393,19 +422,22 @@ mod tests {
     }
 
     #[test]
-    fn active_time_counts_short_gaps_only() {
+    fn active_time_is_capped_per_gap() {
         let mut app = AppState::in_memory();
         let t0 = 1_000_000;
+        let total = |a: &AppState| {
+            a.progress.time_by_day.values().sum::<u64>() + a.progress.pending_seconds
+        };
         app.tick(t0); // первый кадр: точки отсчёта ещё нет
-        assert_eq!(app.progress.pending_seconds, 0);
+        assert_eq!(total(&app), 0);
         app.tick(t0 + 20);
-        assert_eq!(app.progress.pending_seconds, 20);
-        app.tick(t0 + 20 + IDLE_LIMIT_SECS + 1); // ушёл и вернулся — паузу не считаем
-        assert_eq!(app.progress.pending_seconds, 20);
-        app.tick(t0 + 20 + IDLE_LIMIT_SECS + 11);
-        assert_eq!(app.progress.pending_seconds, 30 - 30); // накоплено 30 → перенесено в сутки
-        let day = util::unix_day(t0 + 20 + IDLE_LIMIT_SECS + 11).to_string();
-        assert_eq!(app.progress.time_by_day[&day], 30);
+        assert_eq!(total(&app), 20);
+        app.tick(t0 + 20 + IDLE_LIMIT_SECS - 1); // читал без ввода почти до предела — засчитано целиком
+        assert_eq!(total(&app), 20 + IDLE_LIMIT_SECS - 1);
+        app.tick(t0 + 20 + IDLE_LIMIT_SECS - 1 + 3_600); // ушёл на час — не больше предела
+        assert_eq!(total(&app), 20 + 2 * IDLE_LIMIT_SECS - 1);
+        let day = util::local_day(t0).to_string();
+        assert_eq!(app.progress.time_by_day[&day], 20 + 2 * IDLE_LIMIT_SECS - 1);
     }
 
     #[test]
@@ -416,6 +448,7 @@ mod tests {
         first.tick(1_000_000);
         first.tick(1_000_010);
         first.flush(true);
+        drop(first);
         let mut second = app_in(&dir, 1_000_000 + 86_400);
         second.tick(1_000_000 + 86_400);
         assert_eq!(
@@ -492,6 +525,7 @@ mod tests {
         a.add_xp(123);
         a.progress.journal = "заметка".into();
         a.flush(true);
+        drop(a);
         let b = app_in(&dir, 1_000_000);
         assert_eq!(
             (b.progress.xp, b.progress.journal.as_str()),
@@ -506,6 +540,7 @@ mod tests {
         let mut a = app_in(&dir, 1_000_000);
         a.add_xp(77);
         a.flush(true);
+        drop(a);
         drop(app_in(&dir, 1_000_000)); // ротация: bak1 = сохранённый прогресс
         let file = dir.path().join("config").join("progress.json");
         std::fs::write(&file, "мусор").unwrap();
@@ -527,8 +562,65 @@ mod tests {
         let mut a = app_in(&dir, 10 * 86_400);
         a.tick(10 * 86_400);
         a.flush(true);
+        drop(a);
         assert_eq!(app_in(&dir, 14 * 86_400).days_away, 4);
         assert_eq!(AppState::in_memory().days_away, 0);
+    }
+
+    #[test]
+    fn second_window_keeps_the_first_windows_progress() {
+        let dir = TempDir::new("twowindows");
+        let mut first = app_in(&dir, 1_000_000);
+        first.add_xp(50);
+        first.flush(true);
+        let mut second = app_in(&dir, 1_000_000);
+        assert_eq!(second.progress.xp, 50, "второе окно видит прогресс");
+        assert!(second
+            .startup_notice
+            .as_ref()
+            .is_some_and(|n| n.contains("другом окне")));
+        assert!(!second.is_dirty(), "предупреждение не повод писать на диск");
+        second.add_xp(1_000);
+        second.flush(true);
+        assert!(
+            second.save_error.is_some(),
+            "пользователь должен увидеть, что запись отключена"
+        );
+        assert_eq!(second.saves_written, 0);
+        first.add_xp(5);
+        first.flush(true);
+        drop((first, second));
+        assert_eq!(app_in(&dir, 1_000_000).progress.xp, 55);
+    }
+
+    #[test]
+    fn file_from_a_newer_version_is_never_overwritten() {
+        let dir = TempDir::new("newer");
+        let file = dir.path().join("config").join("progress.json");
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        let future = r#"{"schema": 99, "xp": 500, "from_the_future": [1, 2, 3]}"#;
+        std::fs::write(&file, future).unwrap();
+        let mut app = app_in(&dir, 1_000_000);
+        assert_eq!(app.progress.xp, 500);
+        assert!(app
+            .startup_notice
+            .as_ref()
+            .is_some_and(|n| n.contains("более новой версией") && n.contains("99")));
+        app.add_xp(1);
+        app.flush(true);
+        assert!(app.save_error.is_some());
+        drop(app);
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), future);
+    }
+
+    #[test]
+    fn missing_config_dir_is_reported_but_in_memory_is_quiet() {
+        let app = AppState::with_paths(Paths::none());
+        assert!(app
+            .startup_notice
+            .as_ref()
+            .is_some_and(|n| n.contains("RE50_CONFIG_DIR")));
+        assert!(AppState::in_memory().startup_notice.is_none());
     }
 
     #[test]
@@ -567,7 +659,11 @@ mod tests {
             titles("ghidra"),
             "пробелы по краям не влияют"
         );
-        assert!(titles("ghidra").len() <= 30);
+        assert_eq!(
+            titles("функци").len(),
+            SEARCH_LIMIT,
+            "частое слово упирается в потолок выдачи"
+        );
     }
 
     #[test]

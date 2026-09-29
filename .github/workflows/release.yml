@@ -9,7 +9,11 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   build:
+    needs: ci
     strategy:
       fail-fast: false
       matrix:
