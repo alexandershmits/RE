@@ -1,4 +1,4 @@
-//! Минимальная разметка текста курса: `**жирный**`, `` `код` `` и `[ссылка](https://…)`.
+//! Минимальная разметка текста курса: `**жирный**`, `*курсив*`, `` `код` `` и `[ссылка](https://…)`.
 
 use eframe::egui::{self, RichText};
 
@@ -6,6 +6,7 @@ use eframe::egui::{self, RichText};
 pub enum Span<'a> {
     Text(&'a str),
     Bold(&'a str),
+    Italic(&'a str),
     Code(&'a str),
     Link { label: &'a str, url: &'a str },
 }
@@ -20,6 +21,15 @@ pub fn parse(input: &str) -> Vec<Span<'_>> {
             body.find("**")
                 .filter(|&n| n > 0)
                 .map(|n| (Span::Bold(&body[..n]), 2 + n + 2))
+        } else if let Some(body) = rest.strip_prefix('*') {
+            // курсив: открывающая звёздочка не внутри слова, снаружи от пробелов
+            let opens = input[..i]
+                .chars()
+                .next_back()
+                .is_none_or(|c| !c.is_alphanumeric());
+            body.find('*')
+                .filter(|&n| opens && n > 0 && !body.starts_with(' ') && !body[..n].ends_with(' '))
+                .map(|n| (Span::Italic(&body[..n]), 1 + n + 1))
         } else if let Some(body) = rest.strip_prefix('`') {
             body.find('`')
                 .filter(|&n| n > 0)
@@ -64,6 +74,7 @@ pub fn show(ui: &mut egui::Ui, input: &str) {
             match span {
                 Span::Text(t) => ui.label(t),
                 Span::Bold(t) => ui.label(RichText::new(t).strong()),
+                Span::Italic(t) => ui.label(RichText::new(t).italics()),
                 Span::Code(t) => ui.label(RichText::new(t).monospace()),
                 Span::Link { label, url } => ui.hyperlink_to(label, url),
             };
@@ -106,6 +117,22 @@ mod tests {
     }
 
     #[test]
+    fn italics_need_word_boundaries() {
+        assert_eq!(
+            parse("*The Ghidra Book* (гл. 1)"),
+            vec![Span::Italic("The Ghidra Book"), Span::Text(" (гл. 1)")]
+        );
+        // умножение и указатели остаются текстом
+        for s in ["2*3*4", "a * b * c", "int *p, *q;"] {
+            assert!(
+                parse(s).iter().all(|sp| matches!(sp, Span::Text(_))),
+                "{s}: {:?}",
+                parse(s)
+            );
+        }
+    }
+
+    #[test]
     fn broken_markup_stays_text() {
         for s in [
             "**без конца",
@@ -139,7 +166,9 @@ mod tests {
                 let visible: usize = parse(line)
                     .iter()
                     .map(|s| match s {
-                        Span::Text(t) | Span::Bold(t) | Span::Code(t) => t.chars().count(),
+                        Span::Text(t) | Span::Bold(t) | Span::Italic(t) | Span::Code(t) => {
+                            t.chars().count()
+                        }
                         Span::Link { label, .. } => label.chars().count(),
                     })
                     .sum();

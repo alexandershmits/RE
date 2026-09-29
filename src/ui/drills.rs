@@ -25,9 +25,9 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
         });
         ui.add_space(8.0);
         ScrollArea::vertical().id_salt("drills").show(ui, |ui| match app.drill.which {
-            0 => choice_drill(app, ui, "asm", cur.drills.asm.iter().map(|t| Choice::asm(t)).collect()),
-            1 => choice_drill(app, ui, "addr", cur.drills.addr.iter().map(|t| Choice::addr(t)).collect()),
-            2 => choice_drill(app, ui, "pat", cur.drills.pattern.iter().map(|t| Choice::pattern(t)).collect()),
+            0 => choice_drill(app, ui, "asm", cur.drills.asm.iter().map(Choice::asm).collect()),
+            1 => choice_drill(app, ui, "addr", cur.drills.addr.iter().map(Choice::addr).collect()),
+            2 => choice_drill(app, ui, "pat", cur.drills.pattern.iter().map(Choice::pattern).collect()),
             _ => script_drill(app, ui),
         });
     });

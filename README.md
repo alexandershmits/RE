@@ -1,32 +1,100 @@
-# 🩸 RE-50 — Реверс-инжиниринг с нуля (десктоп-приложение)
+# 🩸 RE-50 — реверс-инжиниринг с нуля
 
-Кроссплатформенное приложение курса на **Rust + egui/eframe 0.29**.
-Работает на Linux, macOS, Windows 11.
+[![ci](https://github.com/alexandershmits/RE/actions/workflows/ci.yml/badge.svg)](https://github.com/alexandershmits/RE/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+Десктопное приложение курса по реверс-инжинирингу в формате CS50: от нуля до senior-аналитика за 48 недель.
+Лекции и лабы, problem sets с «правилом честности», тренажёры, интервальные карточки, встроенные crackme-челленджи.
+Rust + egui/eframe. Работает на Linux, macOS и Windows, полностью офлайн; прогресс хранится только у вас.
+
+<p align="center">
+  <img src="docs/img/dashboard.png" width="49%" alt="Дашборд">
+  <img src="docs/img/trainer.png" width="49%" alt="Тренажёр-квиз">
+</p>
+<p align="center">
+  <img src="docs/img/course.png" width="49%" alt="Страница недели курса">
+  <img src="docs/img/dashboard-light.png" width="49%" alt="Светлая тема">
+</p>
+
+<!-- stats: modules=17 week_entries=42 last_week=48 psets=41 quizzes=108 drills=89 flashcards=20 achievements=37 challenges=15 resources=35 -->
 
 ## Возможности
-- 📚 Полный курс: 7 модулей, 18 недель (лекции, лабы, problem sets, чек-пойнты)
-- 🎯 Тренажёр-квиз: 31 вопрос с объяснениями, фильтр по модулям, статистика
-- 🏅 15 ачивок + XP-система
-- 📓 Журнал с автосохранением
-- 🔗 Библиотека из 35 ресурсов
-- Прогресс хранится локально: `~/.config/re50/progress.json` (Linux), `~/Library/Application Support/re50/` (macOS), `%APPDATA%/re50/` (Windows)
 
-## Сборка
+- 📚 **Курс:** 17 модулей, 48 недель (42 страницы). На каждой — лекции, лаба, problem set, чек-пойнт «понял или имитирую» и «проблема недели». 41 problem set сдаётся только вместе с объяснением своими словами.
+- 🎯 **Тренажёр:** 108 квизов с разбором. Неверные ответы сами попадают в колоду 🃏 **карточек** (система Лейтнера: повтор через 1 → 3 → 7 → 14 → 30 дней), выученные — уходят.
+- 🔁 **Дриллы (89) и ⚙ симуляторы:** регистры и инструкции (ответы считает встроенный x86-эмулятор), PE-байты, поиск OEP, бесконечный генератор задач.
+- 🚩 **15 crackme-челленджей** (Linux ELF и Windows PE) с режимом «Ставка»: гипотеза записывается до решения. Генератор «adversarial loop» делает новые варианты со случайным флагом.
+- 🥋 **Socratic-оппонент** (офлайн-эвристика или локальный [Ollama](https://ollama.com)), 💼 **рабочая сессия** аналитика, 🎓 **ежемесячная ре-сертификация**.
+- 🏅 **37 ачивок**, XP выдаётся один раз за действие; серия дней, учёт времени, поведенческий анализ («Теоретик», «галометка», разрыв в практике).
+- 🔍 Поиск по всему курсу (Ctrl+K), тёмная и светлая темы, масштаб шрифта, экспорт журнала и прогресса. 35 проверяемых ссылок на внешние материалы.
+
+## Установка
+
+**Готовый бинарь.** Страница [Releases](https://github.com/alexandershmits/RE/releases): файл для вашей системы и `SHA256SUMS`.
+
 ```bash
-cargo build --release
-./target/release/re50
+sha256sum -c --ignore-missing SHA256SUMS
+chmod +x re50-linux-x64 && ./re50-linux-x64
 ```
-Зависимости Linux: libxkbcommon-x11, стандартные GUI-библиотеки.
 
-## Запуск готового бинаря (Linux x86-64)
+- **Linux:** нужны `libxkbcommon-x11` и OpenGL (`libgl1`). Debian/Ubuntu: `sudo apt install libxkbcommon-x11-0 libgl1`.
+- **macOS:** бинарь не подписан — при первом запуске «ПКМ → Открыть».
+- **Windows:** SmartScreen → «Подробнее → Выполнить в любом случае».
+
+**Из исходников** (Rust 1.95 или новее):
+
 ```bash
-chmod +x re50 && ./re50
+cargo run --release
 ```
 
-## Структура
-- `src/main.rs` — точка входа
-- `src/curriculum.rs` — модель данных курса
-- `src/state.rs` — прогресс, ачивки, XP, сохранение
-- `src/ui.rs` — интерфейс (egui)
-- `assets/curriculum.json` — весь контент курса (генерируется из исходного плана)
-- `tools/gen_curriculum.py` — генератор curriculum.json
+## Где лежат данные
+
+| ОС | Прогресс |
+|---|---|
+| Linux | `$XDG_CONFIG_HOME/re50/progress.json` (по умолчанию `~/.config/re50/`) |
+| macOS | `~/Library/Application Support/re50/progress.json` |
+| Windows | `%APPDATA%\re50\progress.json` |
+
+Запись атомарная. При каждом запуске ротируются копии `progress.json.bak1…5`; повреждённый файл откладывается как `progress.json.corrupt`, а приложение восстанавливает прогресс из последней исправной копии и сообщает об этом.
+Экспорты (профиль, журнал, лабы недель, бинари челленджей) попадают в домашнюю папку (`re50-lab/`, `re50-profile.json`, `re50-journal.md`).
+Переопределить пути можно переменными `RE50_CONFIG_DIR` и `RE50_EXPORT_DIR`.
+
+## Горячие клавиши
+
+`Ctrl+1…9` — вкладки, `Ctrl+J` — журнал, `Ctrl+K` — поиск.
+
+## Безопасность
+
+Челленджи — безобидные учебные программы, но правило курса остаётся правилом: **чужие сэмплы запускать только в виртуальной машине со снапшотом, без сети и общих папок.**
+Оппонент отправляет ответы только на `127.0.0.1:11434` (локальный Ollama), наружу ничего не уходит.
+
+## Разработка
+
+```bash
+cargo fmt --all --check
+cargo clippy --all-targets --locked -- -D warnings
+cargo test --locked                            # модульные, контентные и UI-тесты (без окна)
+python3 tools/verify_challenges.py --rebuild   # хеши, поведение ELF, пересборка из .c (gcc, mingw)
+python3 tools/check_links.py                   # проверка внешних ссылок (нужна сеть)
+```
+
+Содержимое курса — данные, а не код. Как их править и какие проверки защищают контент — в [docs/CONTENT.md](docs/CONTENT.md).
+
+```
+assets/curriculum.json    курс: недели, квизы, ачивки (с правилами), ресурсы, челленджи
+assets/drills.json        дриллы
+assets/challenges/        исходники .c, ELF и PE-бинари челленджей
+assets/fonts/             Noto Emoji (OFL)
+src/state/                прогресс, сессии, XP, карточки, ачивки, экспорт
+src/storage.rs            пути по платформам, атомарная запись, бэкапы
+src/ui/                   вкладки, тема, разметка текста курса
+src/emulator.rs           мини-эмулятор x86-64 для задач на регистры
+tests/                    контентные и UI-тесты
+tools/                    проверка челленджей и ссылок, генератор вариантов
+```
+
+CI (GitHub Actions) прогоняет `fmt`, `clippy -D warnings` и тесты на Linux, Windows и macOS, а также пересобирает челленджи. Релиз по тегу `vX.Y.Z` собирает бинари под три платформы и публикует контрольные суммы.
+
+## Лицензия
+
+[MIT](LICENSE). Сторонние компоненты и шрифты — в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

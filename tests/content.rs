@@ -426,44 +426,28 @@ fn address_drills_have_correct_answer_keys() {
     }
 }
 
+fn check_choices<'a>(name: &str, items: impl Iterator<Item = (&'a Vec<String>, usize)>) {
+    for (i, (answers, correct)) in items.enumerate() {
+        let unique: HashSet<&String> = answers.iter().collect();
+        assert!(
+            answers.len() == 4 && unique.len() == 4 && correct < 4,
+            "{name}{i}"
+        );
+    }
+}
+
 #[test]
 fn drills_are_well_formed() {
     let c = load();
-    let choice_sets: [(&str, Vec<(&Vec<String>, usize)>); 3] = [
-        (
-            "asm",
-            c.drills
-                .asm
-                .iter()
-                .map(|d| (&d.answers, d.correct))
-                .collect(),
-        ),
-        (
-            "addr",
-            c.drills
-                .addr
-                .iter()
-                .map(|d| (&d.answers, d.correct))
-                .collect(),
-        ),
-        (
-            "pattern",
-            c.drills
-                .pattern
-                .iter()
-                .map(|d| (&d.answers, d.correct))
-                .collect(),
-        ),
-    ];
-    for (name, set) in choice_sets {
-        for (i, (answers, correct)) in set.into_iter().enumerate() {
-            let unique: HashSet<&String> = answers.iter().collect();
-            assert!(
-                answers.len() == 4 && unique.len() == 4 && correct < 4,
-                "{name}{i}"
-            );
-        }
-    }
+    check_choices("asm", c.drills.asm.iter().map(|d| (&d.answers, d.correct)));
+    check_choices(
+        "addr",
+        c.drills.addr.iter().map(|d| (&d.answers, d.correct)),
+    );
+    check_choices(
+        "pattern",
+        c.drills.pattern.iter().map(|d| (&d.answers, d.correct)),
+    );
     for (i, d) in c.drills.script.iter().enumerate() {
         assert!(
             !d.task.trim().is_empty() && !d.answer.trim().is_empty() && !d.hint.trim().is_empty(),
@@ -483,4 +467,59 @@ fn resources_are_secure_links() {
             r.url
         );
     }
+}
+
+/// Поставляемые Linux-бинари ведут себя так, как обещает curriculum.json: верный ввод даёт флаг, мусор — нет.
+#[cfg(target_os = "linux")]
+#[test]
+fn shipped_linux_binaries_accept_the_solution_and_reject_garbage() {
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::{Command, Stdio};
+
+    let solutions: BTreeMap<String, Vec<String>> =
+        serde_json::from_str(include_str!("../tools/challenge_solutions.json"))
+            .expect("решения разбираются");
+    let dir = std::env::temp_dir().join(format!("re50-challenges-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let run = |path: &Path, lines: &[String]| -> String {
+        let mut child = Command::new(path)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("запуск бинаря");
+        let mut stdin = child.stdin.take().unwrap();
+        stdin
+            .write_all(format!("{}\n", lines.join("\n")).as_bytes())
+            .unwrap();
+        drop(stdin);
+        String::from_utf8_lossy(&child.wait_with_output().unwrap().stdout).into_owned()
+    };
+    let c = load();
+    for ch in &c.challenges {
+        let bytes = EMBEDDED_CHALLENGES
+            .iter()
+            .find(|(n, _)| *n == format!("challenges/{}", ch.id))
+            .unwrap()
+            .1;
+        let path = dir.join(&ch.id);
+        std::fs::write(&path, bytes).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let flag = format!("FLAG{{{}}}", ch.flag);
+        let solution = solutions
+            .get(&ch.id)
+            .unwrap_or_else(|| panic!("нет решения для {}", ch.id));
+        assert!(
+            run(&path, solution).contains(&flag),
+            "{}: верный ввод не даёт флаг",
+            ch.id
+        );
+        let garbage = vec!["zzzzzz".to_string(); 3];
+        assert!(
+            !run(&path, &garbage).contains(&flag),
+            "{}: мусорный ввод принят",
+            ch.id
+        );
+    }
+    let _ = std::fs::remove_dir_all(&dir);
 }

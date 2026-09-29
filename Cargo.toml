@@ -1,6 +1,6 @@
 [package]
 name = "re50"
-version = "1.0.0"
+version = "7.2.0"
 edition = "2021"
 rust-version = "1.95"
 description = "RE-50: Reverse Engineering course app (CS50-style) — lectures, labs, problem sets, quizzes, achievements"

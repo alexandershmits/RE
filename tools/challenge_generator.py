@@ -124,25 +124,33 @@ def build(cid, out_dir, seed=None, platform="elf"):
     out = os.path.abspath(out_dir)
     os.makedirs(out, exist_ok=True)
     src_path = os.path.join(out, f"{cid}.c")
-    open(src_path, "w").write(src)
+    with open(src_path, "w", encoding="utf-8") as f:
+        f.write(src)
     cc = "gcc" if platform == "elf" else "x86_64-w64-mingw32-gcc"
     ext = "" if platform == "elf" else ".exe"
     bin_path = os.path.join(out, cid + ext)
-    r = subprocess.run([cc, "-O0", "-m64", src_path, "-o", bin_path, "-w"],
-                       capture_output=True, text=True)
+    try:
+        r = subprocess.run([cc, "-O0", src_path, "-o", bin_path, "-w"], capture_output=True, text=True)
+    except FileNotFoundError:
+        raise RuntimeError(f"компилятор {cc} не найден: установите gcc" + ("" if platform == "elf" else " (mingw-w64)"))
     if r.returncode != 0:
         raise RuntimeError(r.stderr)
     meta = {"id": cid, "title": t["title"], "desc": t["desc"], "flag": flag,
             "solve_hint": solve_hint,
             "params": {k: str(v) for k, v in params.items()}}
-    json.dump(meta, open(os.path.join(out, f"{cid}.meta.json"), "w"),
-              ensure_ascii=False, indent=1)
+    with open(os.path.join(out, f"{cid}.meta.json"), "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=1)
     return meta
 
 if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        sys.exit(__doc__)
     cid, out = sys.argv[1], sys.argv[2]
     platform = sys.argv[3] if len(sys.argv) > 3 else "elf"
     ids = list(TEMPLATES) if cid == "all" else [cid]
-    for c in ids:
-        m = build(c, out, platform=platform)
-        print("OK", c, "flag:", m["flag"])
+    try:
+        for c in ids:
+            m = build(c, out, platform=platform)
+            print("OK", c, "flag:", m["flag"])
+    except (RuntimeError, KeyError) as e:
+        sys.exit(f"ошибка генератора: {e}")

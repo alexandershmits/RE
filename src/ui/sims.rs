@@ -130,17 +130,25 @@ fn registers(app: &mut AppState, ui: &mut egui::Ui) {
     }
 }
 
-/// Общий разбор вопроса с вариантами ответа (PE и OEP).
-fn choice_task(
-    app: &mut AppState,
-    ui: &mut egui::Ui,
+/// Вопрос с вариантами ответа (PE и OEP).
+struct ChoiceTask<'a> {
     key: String,
     reward: u32,
-    answers: &[String],
+    answers: &'a [String],
     correct: usize,
-    explain: &str,
+    explain: &'a str,
     total: usize,
-) {
+}
+
+fn choice_task(app: &mut AppState, ui: &mut egui::Ui, task: ChoiceTask) {
+    let ChoiceTask {
+        key,
+        reward,
+        answers,
+        correct,
+        explain,
+        total,
+    } = task;
     if let Some(chosen) = choice_list(ui, answers, correct, app.sim.choice, app.sim.checked) {
         app.sim.choice = Some(chosen);
         app.sim.checked = true;
@@ -183,12 +191,14 @@ fn pe(app: &mut AppState, ui: &mut egui::Ui) {
     choice_task(
         app,
         ui,
-        format!("pe{idx}"),
-        xp::SIM_PE,
-        &t.answers,
-        t.correct,
-        &t.explain,
-        tasks.len(),
+        ChoiceTask {
+            key: format!("pe{idx}"),
+            reward: xp::SIM_PE,
+            answers: &t.answers,
+            correct: t.correct,
+            explain: &t.explain,
+            total: tasks.len(),
+        },
     );
 }
 
@@ -204,12 +214,14 @@ fn oep(app: &mut AppState, ui: &mut egui::Ui) {
     choice_task(
         app,
         ui,
-        format!("oep{idx}"),
-        xp::SIM_OEP,
-        &t.answers,
-        t.correct,
-        &t.explain,
-        tasks.len(),
+        ChoiceTask {
+            key: format!("oep{idx}"),
+            reward: xp::SIM_OEP,
+            answers: &t.answers,
+            correct: t.correct,
+            explain: &t.explain,
+            total: tasks.len(),
+        },
     );
 }
 
