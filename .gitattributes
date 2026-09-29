@@ -1,0 +1,7 @@
+# Единые переводы строк: тесты сравнивают текст и хеши, CRLF из checkout на Windows их ломает.
+* text=auto eol=lf
+*.exe binary
+*.ttf binary
+*.png binary
+assets/challenges/* binary
+assets/challenges/*.c text eol=lf

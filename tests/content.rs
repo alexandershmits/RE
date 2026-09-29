@@ -214,7 +214,11 @@ fn text_contains_nothing_the_fonts_cannot_draw() {
             !('\u{4e00}'..='\u{9fff}').contains(&c),
             "иероглиф {c} в русском тексте"
         );
-        assert!(!c.is_control() || c == '\n', "управляющий символ {:?}", c);
+        assert!(
+            !c.is_control() || c == '\n' || c == '\r',
+            "управляющий символ {:?}",
+            c
+        );
     }
 }
 
