@@ -47,6 +47,12 @@ mod tests {
     }
 
     #[test]
+    fn generator_script_embedded() {
+        assert!(crate::generator_script::GENERATOR_PY.contains("TEMPLATES"));
+        assert!(crate::generator_script::GENERATOR_PY.len() > 3000);
+    }
+
+    #[test]
     fn challenge_binaries_embedded() {
         let c = Curriculum::load();
         for ch in &c.challenges {
