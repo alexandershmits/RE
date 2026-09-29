@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Adversarial loop: генерация параметризованных челленджей (string.Template).
+Каждый вариант ELF проходит self-solve: собранный бинарь обязан выдать флаг на решении и не выдать на неверном вводе.
 Использование:
   python3 challenge_generator.py gen1 out_dir [elf|exe]
   python3 challenge_generator.py all out_dir
@@ -75,14 +76,14 @@ def gen_xor_num(rng):
     t = rng.randint(0x100, 0xFFFF)
     x = k1 ^ t
     flag = f"g{x % 99991:x}{k1 % 9973:x}"
-    return {"K1": f"{k1:#x}", "T": f"{t:#x}", "flag": flag}, f"ответ: число {x}", flag
+    return {"K1": f"{k1:#x}", "T": f"{t:#x}", "flag": flag}, f"ответ: число {x}", flag, [str(x)], [str(x ^ 1)]
 
 def gen_shift(rng):
     s = rng.randint(1, 15)
     t = rng.randint(0x100, 0xFFFF)
     x = t << s
     flag = f"s{s:02d}x{t % 99991:x}"
-    return {"S": str(s), "T": f"{t:#x}", "flag": flag}, f"ответ: число {x}", flag
+    return {"S": str(s), "T": f"{t:#x}", "flag": flag}, f"ответ: число {x}", flag, [str(x)], ["0"]
 
 def gen_hash31(rng):
     seed = rng.randint(1, 0xFFFF)
@@ -91,7 +92,7 @@ def gen_hash31(rng):
     for c in word.encode():
         h = (h * 31 + c) & 0xFFFFFFFF
     flag = f"h{h % 999983:x}"
-    return {"SEED": str(seed), "TARGET": f"{h:#x}", "flag": flag}, f"пароль: {word}", flag
+    return {"SEED": str(seed), "TARGET": f"{h:#x}", "flag": flag}, f"пароль: {word}", flag, [word], [word + "x"]
 
 def gen_xorpos(rng):
     n = rng.randint(6, 10)
@@ -101,7 +102,7 @@ def gen_xorpos(rng):
         pw += rng.choice("0123456789abcdef")
     targets = ",".join(str(ord(c) ^ (base + i)) for i, c in enumerate(pw))
     flag = f"x{base:02x}n{n}"
-    return {"N": str(n), "BASE": str(base), "TARGETS": targets, "flag": flag}, f"пароль: {pw}", flag
+    return {"N": str(n), "BASE": str(base), "TARGETS": targets, "flag": flag}, f"пароль: {pw}", flag, [pw], [pw[:-1] + "~"]
 
 def gen_2stage(rng):
     s1 = rng.choice(WORDS)[:6]
@@ -111,38 +112,61 @@ def gen_2stage(rng):
     for c in s2.encode():
         h = (h * mult + c) & 0xFFFFFFFF
     flag = f"2s{h % 99991:x}"
-    return {"S1": s1, "MULT": str(mult), "H2": f"{h:#x}", "flag": flag}, f"stage1: {s1}; stage2: {s2}", flag
+    return {"S1": s1, "MULT": str(mult), "H2": f"{h:#x}", "flag": flag}, f"stage1: {s1}; stage2: {s2}", flag, [s1, s2], [s1, "zzz"]
 
 BUILDERS = {"gen1": gen_xor_num, "gen2": gen_shift, "gen3": gen_hash31,
             "gen4": gen_xorpos, "gen5": gen_2stage}
 
+def self_solve(bin_path, answer, wrong, flag):
+    """Прогоняет собранный бинарь: решение обязано выдать флаг, заведомо неверный ввод — нет.
+    Так в приложение не попадёт нерешаемый или вырожденный вариант."""
+    exe = bin_path if os.path.exists(bin_path) else bin_path + ".exe"
+    def run(lines):
+        return subprocess.run([exe], input="\n".join(lines) + "\n", capture_output=True,
+                              text=True, timeout=10).stdout
+    if f"FLAG{{{flag}}}" not in run(answer):
+        raise RuntimeError(f"self-solve: {os.path.basename(exe)} не выдал флаг на решении {answer!r}")
+    if "FLAG{" in run(wrong):
+        raise RuntimeError(f"self-solve: {os.path.basename(exe)} выдал флаг на неверном вводе {wrong!r}")
+
+
 def build(cid, out_dir, seed=None, platform="elf"):
     rng = random.Random(seed) if seed is not None else random.SystemRandom()
     t = TEMPLATES[cid]
-    params, solve_hint, flag = BUILDERS[cid](rng)
+    params, solve_hint, flag, answer, wrong = BUILDERS[cid](rng)
     src = t["tmpl"].substitute(**params)
     out = os.path.abspath(out_dir)
     os.makedirs(out, exist_ok=True)
     src_path = os.path.join(out, f"{cid}.c")
-    open(src_path, "w").write(src)
+    with open(src_path, "w", encoding="utf-8") as f:
+        f.write(src)
     cc = "gcc" if platform == "elf" else "x86_64-w64-mingw32-gcc"
     ext = "" if platform == "elf" else ".exe"
     bin_path = os.path.join(out, cid + ext)
-    r = subprocess.run([cc, "-O0", "-m64", src_path, "-o", bin_path, "-w"],
-                       capture_output=True, text=True)
+    try:
+        r = subprocess.run([cc, "-O0", src_path, "-o", bin_path, "-w"], capture_output=True, text=True)
+    except FileNotFoundError:
+        raise RuntimeError(f"компилятор {cc} не найден: установите gcc" + ("" if platform == "elf" else " (mingw-w64)"))
     if r.returncode != 0:
         raise RuntimeError(r.stderr)
+    if platform == "elf":
+        self_solve(bin_path, answer, wrong, flag)
     meta = {"id": cid, "title": t["title"], "desc": t["desc"], "flag": flag,
             "solve_hint": solve_hint,
             "params": {k: str(v) for k, v in params.items()}}
-    json.dump(meta, open(os.path.join(out, f"{cid}.meta.json"), "w"),
-              ensure_ascii=False, indent=1)
+    with open(os.path.join(out, f"{cid}.meta.json"), "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=1)
     return meta
 
 if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        sys.exit(__doc__)
     cid, out = sys.argv[1], sys.argv[2]
     platform = sys.argv[3] if len(sys.argv) > 3 else "elf"
     ids = list(TEMPLATES) if cid == "all" else [cid]
-    for c in ids:
-        m = build(c, out, platform=platform)
-        print("OK", c, "flag:", m["flag"])
+    try:
+        for c in ids:
+            m = build(c, out, platform=platform)
+            print("OK", c, "flag:", m["flag"])
+    except (RuntimeError, KeyError) as e:
+        sys.exit(f"ошибка генератора: {e}")

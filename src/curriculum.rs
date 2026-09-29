@@ -48,13 +48,38 @@ impl Week {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Quiz {
     pub id: String,
-    #[serde(rename = "week")]
-    pub _week: String,
+    pub week: String,
     pub module: u8,
     pub question: String,
     pub answers: Vec<String>,
     pub correct: usize,
     pub explain: String,
+}
+
+/// Условие получения ачивки. Все заданные пункты должны выполняться одновременно.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct Rule {
+    /// Эти недели отмечены закрытыми.
+    pub weeks: Vec<String>,
+    /// У этих недель сданы все PSet.
+    pub psets: Vec<String>,
+    /// В этих модулях все квизы решены верно.
+    pub quiz_modules: Vec<u8>,
+    /// Не менее N% всех квизов решены верно.
+    pub quiz_percent: Option<u32>,
+    /// Решено не менее N встроенных челленджей.
+    pub challenges: Option<u32>,
+}
+
+impl Rule {
+    pub fn is_empty(&self) -> bool {
+        self.weeks.is_empty()
+            && self.psets.is_empty()
+            && self.quiz_modules.is_empty()
+            && self.quiz_percent.is_none()
+            && self.challenges.is_none()
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -63,6 +88,8 @@ pub struct Achievement {
     pub name: String,
     pub desc: String,
     pub xp: u32,
+    #[serde(default)]
+    pub when: Rule,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -71,7 +98,6 @@ pub struct Resource {
     pub url: String,
     pub category: String,
 }
-
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Flashcard {
@@ -87,7 +113,6 @@ pub struct InterviewQuestion {
     pub a: String,
     pub cat: String,
 }
-
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PlacementQ {
@@ -149,10 +174,14 @@ pub struct Challenge {
     pub desc: String,
     pub hint: String,
     pub flag: String,
-    #[allow(dead_code)]
+    /// Первые 16 hex-символов SHA-256 ELF-бинаря.
     pub sha256: String,
-    #[allow(dead_code)]
+    /// Первые 16 hex-символов SHA-256 PE-бинаря.
+    #[serde(default)]
+    pub sha256_exe: String,
     pub file: String,
+    #[serde(default)]
+    pub file_exe: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -170,7 +199,6 @@ pub struct Diagram {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Curriculum {
-    #[allow(dead_code)]
     pub version: u32,
     pub course: Course,
     pub modules: Vec<Module>,
@@ -199,12 +227,17 @@ pub struct Curriculum {
 }
 
 impl Curriculum {
+    /// Встроенный контент; падает только при дефекте сборки — его ловит тест `curriculum_parses`.
     pub fn load() -> Curriculum {
-        let raw = include_str!("../assets/curriculum.json");
-        let mut c: Curriculum = serde_json::from_str(raw).expect("curriculum.json is invalid");
+        Self::try_load().expect("встроенный контент повреждён")
+    }
+
+    pub fn try_load() -> Result<Curriculum, String> {
+        let mut c: Curriculum = serde_json::from_str(include_str!("../assets/curriculum.json"))
+            .map_err(|e| format!("curriculum.json: {e}"))?;
         c.drills = serde_json::from_str(include_str!("../assets/drills.json"))
-            .expect("drills.json is invalid");
-        c
+            .map_err(|e| format!("drills.json: {e}"))?;
+        Ok(c)
     }
 
     pub fn module_name(&self, id: u8) -> String {
@@ -215,4 +248,11 @@ impl Curriculum {
             .unwrap_or_else(|| "—".to_string())
     }
 
+    pub fn quiz_by_id(&self, id: &str) -> Option<&Quiz> {
+        self.quizzes.iter().find(|q| q.id == id)
+    }
+
+    pub fn week_by_id(&self, id: &str) -> Option<&Week> {
+        self.weeks.iter().find(|w| w.id == id)
+    }
 }

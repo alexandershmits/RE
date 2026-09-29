@@ -1,39 +1,20 @@
 name: link-check
+
 on:
   schedule:
     - cron: "0 6 * * 1"
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: {python-version: "3.12"}
-      - name: Check resource links
-        run: |
-          python - <<'EOF'
-          import json, urllib.request, concurrent.futures, sys
-          c = json.load(open('assets/curriculum.json', encoding='utf-8'))
-          urls = set()
-          for w in c['weeks']:
-              for r in w.get('resources', []):
-                  u = r.get('url') if isinstance(r, dict) else None
-                  if u: urls.add(u)
-          def check(u):
-              try:
-                  req = urllib.request.Request(u, method='HEAD',
-                      headers={'User-Agent': 'Mozilla/5.0 (link-checker)'})
-                  with urllib.request.urlopen(req, timeout=15) as resp:
-                      return u, resp.status
-              except Exception as e:
-                  return u, str(e)
-          with concurrent.futures.ThreadPoolExecutor(10) as ex:
-              results = list(ex.map(check, urls))
-          dead = [r for r in results if not (isinstance(r[1], int) and r[1] < 400)]
-          for u, s in results:
-              print(('OK ' if (u, s) not in dead else 'DEAD '), s, u)
-          if dead:
-              print(f"::warning::{len(dead)} dead links")
-          sys.exit(0)  # warning only, не валим CI
-          EOF
+        with:
+          python-version: "3.12"
+      # Падает только при мёртвых ссылках (404/410, нет домена); отказы ботам и таймауты — лишь в отчёте.
+      - run: python tools/check_links.py

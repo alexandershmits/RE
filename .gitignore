@@ -1,3 +1,7 @@
 /target
 *.exe
 *.pdb
+!assets/challenges/*.exe
+
+__pycache__/
+*.pyc
