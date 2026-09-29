@@ -111,7 +111,7 @@ fn choice_drill(app: &mut AppState, ui: &mut egui::Ui, prefix: &str, tasks: Vec<
         if app.drill.choice == Some(t.correct) {
             ui.label(RichText::new("✔ Верно!").color(good()).strong());
         } else {
-            ui.label(RichText::new("✘ Неверно.").color(accent()).strong());
+            ui.label(RichText::new("✖ Неверно.").color(accent()).strong());
         }
     }
     if app.drill.show_answer {

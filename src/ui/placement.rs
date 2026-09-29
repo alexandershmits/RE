@@ -58,7 +58,7 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
         if pl.answered {
             let ok = pl.selected == Some(q.correct);
             ui.label(if ok { RichText::new("✔ Верно").color(good()) } else {
-                RichText::new(format!("✘ Неверно. Тема относится к неделе {}", q.week)).color(accent())
+                RichText::new(format!("✖ Неверно. Тема относится к неделе {}", q.week)).color(accent())
             });
             if ui.button("Далее →").clicked() {
                 pl.pos += 1; pl.selected = None; pl.answered = false;

@@ -150,7 +150,7 @@ impl AppState {
         for (id, bet) in &p.challenge_bets {
             let mark = match p.bet_results.get(id) {
                 Some(true) => "✔",
-                Some(false) => "✘",
+                Some(false) => "✖",
                 None => "⏳",
             };
             md.push_str(&format!("- {mark} **{id}**: {bet}\n"));

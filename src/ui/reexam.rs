@@ -69,7 +69,7 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
         if selected == Some(q.correct) {
             ui.label(RichText::new("✔ Верно").color(good()));
         } else {
-            ui.label(RichText::new(format!("✘ Неверно. Правильный ответ: {}", q.answers[q.correct])).color(warn()));
+            ui.label(RichText::new(format!("✖ Неверно. Правильный ответ: {}", q.answers[q.correct])).color(warn()));
         }
         ui.label(RichText::new(&q.explain).weak().size(12.0));
         ui.add_space(6.0);

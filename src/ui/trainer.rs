@@ -94,7 +94,7 @@ fn session(app: &mut AppState, ui: &mut egui::Ui, ctx: &egui::Context) {
         } else {
             let letter = char::from(b'A' + quiz.correct as u8);
             ui.label(
-                RichText::new(format!("✘ Неверно. Правильный ответ: {letter}"))
+                RichText::new(format!("✖ Неверно. Правильный ответ: {letter}"))
                     .color(accent())
                     .size(16.0)
                     .strong(),

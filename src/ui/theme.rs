@@ -67,17 +67,32 @@ pub fn install(ctx: &egui::Context, progress: &Progress) {
     apply(ctx, progress);
 }
 
-pub fn install_fonts(ctx: &egui::Context) {
+/// Шрифты приложения: стандартные egui + Noto Emoji + Hack как запасной для стрелок и рамок.
+pub fn font_definitions() -> FontDefinitions {
     let mut fonts = FontDefinitions::default();
     fonts.font_data.insert(
         "noto-emoji".into(),
         Arc::new(FontData::from_static(EMOJI_FONT)),
     );
-    for (family, at) in [(FontFamily::Proportional, 1), (FontFamily::Monospace, 2)] {
+    // Ubuntu-Light (основной шрифт) не содержит стрелок, рамок и геометрических фигур; они есть в Hack,
+    // который egui уже поставляет, но подключает только для моноширинного текста.
+    for (family, extra) in [
+        (FontFamily::Proportional, vec!["Hack", "noto-emoji"]),
+        (FontFamily::Monospace, vec!["noto-emoji"]),
+    ] {
         let list = fonts.families.entry(family).or_default();
-        list.insert(at.min(list.len()), "noto-emoji".into());
+        for (offset, name) in extra.into_iter().enumerate() {
+            if !list.iter().any(|n| n == name) {
+                let at = (1 + offset).min(list.len());
+                list.insert(at, name.into());
+            }
+        }
     }
-    ctx.set_fonts(fonts);
+    fonts
+}
+
+pub fn install_fonts(ctx: &egui::Context) {
+    ctx.set_fonts(font_definitions());
 }
 
 /// Тема и размер шрифта. Всегда строится от стандартного стиля, поэтому повторный вызов идемпотентен

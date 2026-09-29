@@ -108,7 +108,7 @@ fn registers(app: &mut AppState, ui: &mut egui::Ui) {
             ui.label(RichText::new("✔ Всё верно!").color(good()).strong());
         } else {
             ui.label(
-                RichText::new("✘ Есть ошибки — проверьте ещё раз или посмотрите ответ.")
+                RichText::new("✖ Есть ошибки — проверьте ещё раз или посмотрите ответ.")
                     .color(accent())
                     .strong(),
             );
@@ -162,7 +162,7 @@ fn choice_task(
         if app.sim.last_ok {
             ui.label(RichText::new("✔ Верно!").color(good()).strong());
         } else {
-            ui.label(RichText::new("✘ Неверно.").color(accent()).strong());
+            ui.label(RichText::new("✖ Неверно.").color(accent()).strong());
         }
         ui.label(RichText::new(format!("💡 {explain}")).weak());
     }
@@ -273,7 +273,7 @@ fn generative(app: &mut AppState, ui: &mut egui::Ui) {
         let label = if *ok {
             "✔ Верно!"
         } else {
-            "✘ Неверно — попробуйте ещё раз или возьмите новый вопрос"
+            "✖ Неверно — попробуйте ещё раз или возьмите новый вопрос"
         };
         ui.label(
             RichText::new(label)

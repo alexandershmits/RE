@@ -205,7 +205,7 @@ fn bet(app: &mut AppState, ui: &mut egui::Ui, ctx: &egui::Context, ch: &Challeng
         if has_bet && solved {
             for (label, hit, note) in [
                 ("✔ Сверить: гипотеза верна?", true, "Ставка зафиксирована. Точность интуиции растёт!"),
-                ("✘ Сверить: гипотеза мимо", false, "Мимо — это тоже данные. Запиши в журнал, где ошиблась интуиция."),
+                ("✖ Сверить: гипотеза мимо", false, "Мимо — это тоже данные. Запиши в журнал, где ошиблась интуиция."),
             ] {
                 if ui.small_button(label).clicked() {
                     app.progress.bet_results.insert(ch.id.clone(), hit);
