@@ -88,6 +88,15 @@ pub fn run(app: &mut AppState, ctx: &egui::Context) {
             ui.heading(RichText::new("🩸 RE-50").color(ACCENT).size(22.0));
             ui.label(RichText::new(&app.curriculum.course.subtitle).weak().size(12.0));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                // Глобальный поиск
+                let resp = ui.add(
+                    egui::TextEdit::singleline(&mut app.search_query)
+                        .hint_text("🔍 Поиск по курсу...")
+                        .desired_width(200.0),
+                );
+                if resp.changed() {
+                    app.search_results = app.search_course(&app.search_query);
+                }
                 ui.label(RichText::new(format!("⭐ {} XP", app.progress.xp)).color(WARN));
                 let pct = app.overall_percent();
                 ui.add(
@@ -163,6 +172,49 @@ pub fn run(app: &mut AppState, ctx: &egui::Context) {
         Tab::Work => work_tab(app, ctx),
     }
     app.tab = tab;
+
+    // Окно результатов поиска
+    if !app.search_query.trim().is_empty() {
+        let mut close = false;
+        let mut jump: Option<(String, String)> = None;
+        let results = app.search_results.clone();
+        egui::Window::new("🔍 Результаты поиска")
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_TOP, [0.0, 80.0])
+            .show(ctx, |ui| {
+                if results.is_empty() {
+                    ui.label(RichText::new("Ничего не найдено").weak());
+                }
+                egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
+                    for (title, kind, wid) in &results {
+                        if ui.link(title).clicked() {
+                            jump = Some((kind.clone(), wid.clone()));
+                        }
+                    }
+                });
+                if ui.button("Закрыть").clicked() { close = true; }
+            });
+        if let Some((kind, wid)) = jump {
+            match kind.as_str() {
+                "challenge" => { app.tab = Tab::Challenges; }
+                "quiz" => { app.tab = Tab::Trainer; }
+                "resource" => { app.tab = Tab::Resources; }
+                _ => {
+                    // переход к неделе
+                    if let Some(idx) = app.curriculum.weeks.iter().position(|w| w.id == wid) {
+                        app.selected_week = idx;
+                        app.tab = Tab::Course;
+                    }
+                }
+            }
+            close = true;
+        }
+        if close {
+            app.search_query.clear();
+            app.search_results.clear();
+        }
+    }
 }
 
 fn dashboard(app: &mut AppState, ctx: &egui::Context) {
@@ -742,6 +794,14 @@ fn journal(app: &mut AppState, ctx: &egui::Context) {
              Write-up каждого PSet — по правилам честности курса.",
         ).weak());
         ui.separator();
+        ui.horizontal(|ui| {
+            if ui.small_button("📤 Экспорт журнала в ~/re50-journal.md").clicked() {
+                match app.export_journal() {
+                    Ok(p) => app.toast(format!("Журнал сохранён: {p}"), ctx),
+                    Err(e) => app.toast(format!("Ошибка: {e}"), ctx),
+                }
+            }
+        });
         let mut text = app.progress.journal.clone();
         let response = ScrollArea::vertical()
             .id_salt("journal")

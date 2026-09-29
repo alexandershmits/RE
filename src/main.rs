@@ -49,6 +49,27 @@ mod tests {
     }
 
     #[test]
+    fn search_finds_content() {
+        let mut app = crate::state::AppState::for_test();
+        let r = app.search_course("Ghidra");
+        assert!(!r.is_empty(), "search for Ghidra found nothing");
+        let r2 = app.search_course("x");
+        assert!(r2.is_empty(), "too-short query must return empty");
+        let r3 = app.search_course("несуществующееслово123");
+        assert!(r3.is_empty());
+    }
+
+    #[test]
+    fn journal_export_writes_file() {
+        let mut app = crate::state::AppState::for_test();
+        app.progress.journal = "Проверка экспорта".into();
+        let p = app.export_journal().expect("export failed");
+        let content = std::fs::read_to_string(&p).expect("file missing");
+        assert!(content.contains("Проверка экспорта"));
+        let _ = std::fs::remove_file(p);
+    }
+
+    #[test]
     fn work_session_methodology() {
         use crate::state::WorkSession;
         let mut w = WorkSession::new();

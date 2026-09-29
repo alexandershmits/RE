@@ -168,6 +168,8 @@ pub struct AppState {
     pub opponent: OpponentState,
     pub work: WorkSession,
     pub work_hypothesis_input: String,
+    pub search_query: String,
+    pub search_results: Vec<(String, String, String)>,
     #[allow(dead_code)]
     pub import_text: String,
 }
@@ -269,7 +271,80 @@ impl CardSession {
     }
 }
 
+fn chrono_like_date() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let days = secs / 86400;
+    format!("day {days} (unix {})", secs)
+}
+
 impl AppState {
+    /// Экспорт журнала в ~/re50-journal.md
+    pub fn export_journal(&mut self) -> Result<String, String> {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+        let path = std::path::PathBuf::from(home).join("re50-journal.md");
+        let mut md = String::from("# RE-50 — Журнал обучения\n\n");
+        md.push_str(&format!("Экспортирован: {}\n\n", chrono_like_date()));
+        md.push_str(&format!("XP: {} | Недель закрыто: {}\n\n", self.progress.xp, self.progress.weeks_done.len()));
+        md.push_str("## Журнал\n\n");
+        md.push_str(&self.progress.journal);
+        md.push_str("\n\n## Гипотезы (ставки)\n\n");
+        for (id, bet) in &self.progress.challenge_bets {
+            let ok = self.progress.bet_results.get(id).map(|b| if *b { "✔" } else { "✘" }).unwrap_or("⏳");
+            md.push_str(&format!("- {ok} **{id}**: {bet}\n"));
+        }
+        md.push_str("\n## Тикеты (рабочие сессии)\n\n");
+        for (id, dur, ok, comp) in &self.work.history {
+            md.push_str(&format!("- {} {} — {} сек, отчёт {}%\n", if *ok { "✔" } else { "⚠" }, id, dur, comp));
+        }
+        std::fs::write(&path, md).map_err(|e| e.to_string())?;
+        Ok(path.display().to_string())
+    }
+
+    /// Глобальный поиск по курсу: недели, квизы, дриллы, ресурсы, челленджи.
+    /// Возвращает (заголовок результата, тип, week_id для перехода)
+    pub fn search_course(&self, q: &str) -> Vec<(String, String, String)> {
+        let q = q.trim().to_lowercase();
+        if q.len() < 2 { return vec![]; }
+        let mut out = Vec::new();
+        for w in &self.curriculum.weeks {
+            let hay = format!("{} {}", w.title, w.lectures.join(" ")).to_lowercase();
+            if hay.contains(&q) {
+                out.push((format!("📚 {}", w.title), "week".into(), w.id.clone()));
+            }
+            if let Some(lab) = &w.lab {
+                let hay = format!("{} {}", lab.title, lab.steps.join(" ")).to_lowercase();
+                if hay.contains(&q) {
+                    out.push((format!("🧪 {} (лаба)", lab.title), "week".into(), w.id.clone()));
+                }
+            }
+            for ps in &w.psets {
+                if ps.to_lowercase().contains(&q) {
+                    out.push((format!("✏️ {}", ps.chars().take(60).collect::<String>()), "week".into(), w.id.clone()));
+                }
+            }
+        }
+        for quiz in &self.curriculum.quizzes {
+            if quiz.question.to_lowercase().contains(&q) {
+                out.push((format!("❓ {}", quiz.question.chars().take(60).collect::<String>()), "quiz".into(), quiz._week.clone()));
+            }
+        }
+        for ch in &self.curriculum.challenges {
+            if format!("{} {}", ch.title, ch.desc).to_lowercase().contains(&q) {
+                out.push((format!("🚩 {} ({})", ch.title, ch.id), "challenge".into(), String::new()));
+            }
+        }
+        for r in &self.curriculum.resources {
+            if format!("{} {}", r.name, r.category).to_lowercase().contains(&q) {
+                out.push((format!("🔗 {} [{}]", r.name, r.category), "resource".into(), String::new()));
+            }
+        }
+        out.truncate(30);
+        out
+    }
+
     /// Начать рабочую сессию: выбрать случайный нерешённый челлендж как "тикет".
     pub fn start_work_session(&mut self) {
         let mut candidates: Vec<String> = self
@@ -421,10 +496,20 @@ impl AppState {
             opponent: OpponentState::default(),
             work: WorkSession::new(),
             work_hypothesis_input: String::new(),
+            search_query: String::new(),
+            search_results: Vec::new(),
             import_text: String::new(),
             pset_pending_explain: None,
             progress_export_text: String::new(),
         }
+    }
+
+    /// Тестовый конструктор: без чтения/записи файлов на диске.
+    #[cfg(test)]
+    pub fn for_test() -> Self {
+        let mut s = Self::load_or_default();
+        s.progress = Progress::default();
+        s
     }
 
     pub fn load_or_default() -> Self {
@@ -451,6 +536,8 @@ impl AppState {
             opponent: OpponentState::default(),
             work: WorkSession::new(),
             work_hypothesis_input: String::new(),
+            search_query: String::new(),
+            search_results: Vec::new(),
             import_text: String::new(),
         }
     }
@@ -499,6 +586,17 @@ impl AppState {
         if let Some(path) = Self::progress_path() {
             if let Ok(json) = serde_json::to_string_pretty(&self.progress) {
                 let _ = std::fs::create_dir_all(path.parent().unwrap());
+                // бэкап: ротация 5 копий — защита от порчи/случайной потери прогресса
+                let dir = path.parent().unwrap().to_path_buf();
+                let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                for i in (1..5).rev() {
+                    let from = dir.join(format!("{name}.bak{i}"));
+                    let to = dir.join(format!("{name}.bak{}", i + 1));
+                    if from.exists() { let _ = std::fs::rename(&from, &to); }
+                }
+                if path.exists() {
+                    let _ = std::fs::copy(&path, dir.join(format!("{name}.bak1")));
+                }
                 let _ = std::fs::write(&path, json);
             }
         }
@@ -506,8 +604,24 @@ impl AppState {
 
     fn read_progress_file() -> Option<Progress> {
         let path = Self::progress_path()?;
-        let data = std::fs::read_to_string(path).ok()?;
-        serde_json::from_str(&data).ok()
+        // основной файл, затем бэкапы bak1..bak5
+        let dir = path.parent()?;
+        let name = path.file_name()?.to_string_lossy().to_string();
+        let mut candidates = vec![path.clone()];
+        for i in 1..=5 {
+            candidates.push(dir.join(format!("{name}.bak{i}")));
+        }
+        for p in candidates {
+            if let Ok(data) = std::fs::read_to_string(&p) {
+                if let Ok(progress) = serde_json::from_str::<Progress>(&data) {
+                    if p != path {
+                        eprintln!("re50: прогресс восстановлен из бэкапа {}", p.display());
+                    }
+                    return Some(progress);
+                }
+            }
+        }
+        None
     }
 
     pub fn now(&self, ctx: &egui::Context) -> f64 {
