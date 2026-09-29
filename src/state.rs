@@ -115,6 +115,7 @@ pub enum Tab {
     Challenges,
     Reexam,
     Opponent,
+    Work,
 }
 
 #[derive(Default)]
@@ -165,6 +166,8 @@ pub struct AppState {
     pub challenge_input: std::collections::HashMap<String, String>,
     pub reexam: Option<ReexamState>,
     pub opponent: OpponentState,
+    pub work: WorkSession,
+    pub work_hypothesis_input: String,
     #[allow(dead_code)]
     pub import_text: String,
 }
@@ -177,6 +180,49 @@ pub struct ReexamState {
     pub correct: u32,
     pub answered: bool,
     pub finished: bool,
+}
+
+/// Симулятор рабочей сессии аналитика: тикет -> методология -> отчёт.
+#[derive(Default)]
+pub struct WorkSession {
+    pub active: bool,
+    pub challenge_id: String,        // какой бинарь "пришёл" по тикету
+    pub started_unix: u64,
+    /// порядок действий: какие этапы закрыты и в каком порядке
+    pub stages_done: Vec<String>,    // "triage","static","dynamic","report"
+    pub hypotheses: Vec<String>,     // гипотезы как в «Ставке»
+    pub triage_notes: String,        // заметки триажа
+    pub static_notes: String,
+    pub dynamic_notes: String,
+    pub report: [String; 10],        // по rubric (10 пунктов)
+    pub flag_found: bool,
+    /// история закрытых тикетов: (id, секунд, гипотезы_верны, отчёт_полнота%)
+    pub history: Vec<(String, u64, bool, u8)>,
+}
+
+impl WorkSession {
+    pub fn new() -> Self { Default::default() }
+
+    /// Порядок этапов корректен? (триаж раньше динамики, отчёт последним)
+    pub fn methodology_ok(&self) -> Result<(), String> {
+        let pos = |s: &str| self.stages_done.iter().position(|x| x == s);
+        if let (Some(t), Some(d)) = (pos("triage"), pos("dynamic")) {
+            if d < t {
+                return Err("Динамика запущена ДО триажа. В реальной работе это риск: неизвестный сэмпл без первичной оценки = compro." .into());
+            }
+        }
+        if let (Some(s), Some(d)) = (pos("static"), pos("dynamic")) {
+            if d < s {
+                return Err("Динамика до статики. Сначала гипотезы из статики, потом проверка — иначе ты не аналитик, а запускальщик.".into());
+            }
+        }
+        Ok(())
+    }
+
+    pub fn report_completeness(&self) -> u8 {
+        let filled = self.report.iter().filter(|s| s.trim().len() >= 10).count();
+        (filled * 10) as u8
+    }
 }
 
 /// Socratic-оппонент: вопрос, ответ студента, оценка, история.
@@ -224,6 +270,67 @@ impl CardSession {
 }
 
 impl AppState {
+    /// Начать рабочую сессию: выбрать случайный нерешённый челлендж как "тикет".
+    pub fn start_work_session(&mut self) {
+        let mut candidates: Vec<String> = self
+            .curriculum
+            .challenges
+            .iter()
+            .filter(|ch| !self.progress.challenges_solved.contains(&ch.id))
+            .map(|ch| ch.id.clone())
+            .collect();
+        if candidates.is_empty() {
+            // всё решено — берём любой (повторная тренировка)
+            candidates = self.curriculum.challenges.iter().map(|ch| ch.id.clone()).collect();
+        }
+        let seed = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(1);
+        let mut s = seed | 1;
+        s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        let idx = (s >> 33) as usize % candidates.len();
+        let id = candidates[idx].clone();
+        self.work = WorkSession {
+            active: true,
+            challenge_id: id,
+            started_unix: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0),
+            ..WorkSession::new()
+        };
+    }
+
+    /// Закрыть тикет: время, методология, отчёт, XP.
+    pub fn finish_work_session(&mut self) -> String {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let dur = now.saturating_sub(self.work.started_unix);
+        let completeness = self.work.report_completeness();
+        let method_err = self.work.methodology_ok().is_err();
+        let hypotheses = self.work.hypotheses.len();
+        let id = self.work.challenge_id.clone();
+        let solved = self.progress.challenges_solved.contains(&id);
+        self.progress.challenge_bets.insert(format!("work:{}", id), format!("гипотез: {hypotheses}"));
+        self.work.history.push((id.clone(), dur, !method_err, completeness));
+        let mut msg = format!("Тикет {id} закрыт за {dur} сек. Полнота отчёта: {completeness}%.");
+        if method_err {
+            msg.push_str(" ⚠ Нарушение методологии — см. замечание.");
+        } else {
+            msg.push_str(" Методология в порядке ✔");
+        }
+        let _ = solved;
+        // XP: 30 за сессию + 20 за полноту отчёта >= 70%
+        let xp = 30 + if completeness >= 70 { 20 } else { 0 };
+        self.add_xp(xp);
+        msg.push_str(&format!(" +{xp} XP"));
+        self.work.active = false;
+        msg
+    }
+
     /// Прошло ли >=30 дней с последнего re-exam (или никогда не было).
     pub fn reexam_due(&self, day: u64) -> bool {
         match self.progress.last_reexam_day {
@@ -312,6 +419,8 @@ impl AppState {
             challenge_input: std::collections::HashMap::new(),
             reexam: None,
             opponent: OpponentState::default(),
+            work: WorkSession::new(),
+            work_hypothesis_input: String::new(),
             import_text: String::new(),
             pset_pending_explain: None,
             progress_export_text: String::new(),
@@ -340,6 +449,8 @@ impl AppState {
             challenge_input: std::collections::HashMap::new(),
             reexam: None,
             opponent: OpponentState::default(),
+            work: WorkSession::new(),
+            work_hypothesis_input: String::new(),
             import_text: String::new(),
         }
     }

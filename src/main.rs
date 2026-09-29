@@ -49,6 +49,25 @@ mod tests {
     }
 
     #[test]
+    fn work_session_methodology() {
+        use crate::state::WorkSession;
+        let mut w = WorkSession::new();
+        // порядок ок: триаж -> статика -> динамика
+        w.stages_done = vec!["triage".into(), "static".into(), "dynamic".into()];
+        assert!(w.methodology_ok().is_ok());
+        // нарушение: динамика до триажа
+        w.stages_done = vec!["dynamic".into(), "triage".into()];
+        assert!(w.methodology_ok().is_err());
+        // отчёт: полнота
+        let mut w2 = WorkSession::new();
+        assert_eq!(w2.report_completeness(), 0);
+        w2.report[0] = "ELF64, gcc".into();
+        w2.report[1] = "sha256: abcd".into();
+        w2.report[2] = "без упаковки".into();
+        assert_eq!(w2.report_completeness(), 30);
+    }
+
+    #[test]
     fn generative_simulators() {
         use crate::simulators::{generate, check_gen, GenKind};
         // детерминизм: тот же seed — та же задача
