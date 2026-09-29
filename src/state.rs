@@ -40,6 +40,15 @@ pub struct Progress {
     /// XP history: (unix_day, total_xp) — sampled on each save, capped at 400 points
     #[serde(default)]
     pub xp_history: Vec<(u64, u32)>,
+    /// Время занятий: unix_day -> секунды в приложении (сэмпл при save)
+    #[serde(default)]
+    pub time_by_day: std::collections::HashMap<String, u64>,
+    /// накопитель секунд с последнего save
+    #[serde(default)]
+    pub pending_seconds: u64,
+    /// последний unix-секунд тика
+    #[serde(default)]
+    pub last_tick: u64,
     /// Режим «Ставка»: challenge id -> гипотеза, написанная ДО решения
     #[serde(default)]
     pub challenge_bets: std::collections::HashMap<String, String>,
