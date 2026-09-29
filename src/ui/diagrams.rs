@@ -1,6 +1,6 @@
 use eframe::egui::{self, RichText, ScrollArea};
 
-use super::ACCENT;
+use super::theme::{self, accent};
 use crate::state::AppState;
 
 pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
@@ -8,9 +8,9 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
         ui.heading("🗺 Визуальные схемы");
         // Topic graph at top
         if !app.curriculum.topic_map.is_empty() {
-            ui.collapsing(RichText::new("🌍 КАРТА КУРСА — как связаны все темы").strong().color(ACCENT).size(15.0), |ui| {
+            ui.collapsing(RichText::new("🌍 КАРТА КУРСА — как связаны все темы").strong().color(accent()).size(15.0), |ui| {
                 let mut code = app.curriculum.topic_map.clone();
-                egui::Frame::group(ui.style()).fill(egui::Color32::from_rgb(12,13,18)).show(ui, |ui| {
+                egui::Frame::group(ui.style()).fill(theme::code_bg()).show(ui, |ui| {
                     ui.add(
                         egui::TextEdit::multiline(&mut code)
                             .font(egui::TextStyle::Monospace)
@@ -30,7 +30,7 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
                 ui.collapsing(RichText::new(format!("📐 {} [{}]", d.title, d.tag)).strong(), |ui| {
                     let mut code = d.code.clone();
                     egui::Frame::group(ui.style())
-                        .fill(egui::Color32::from_rgb(12, 13, 18))
+                        .fill(theme::code_bg())
                         .show(ui, |ui| {
                             ui.add(
                                 egui::TextEdit::multiline(&mut code)

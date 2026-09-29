@@ -1,6 +1,6 @@
 use eframe::egui::{self, RichText, ScrollArea};
 
-use super::ACCENT;
+use super::theme::accent;
 use crate::state::AppState;
 
 pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
@@ -16,7 +16,7 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
             for r in &app.curriculum.resources {
                 if r.category != last_cat {
                     ui.add_space(6.0);
-                    ui.strong(RichText::new(&r.category).color(ACCENT));
+                    ui.strong(RichText::new(&r.category).color(accent()));
                     last_cat = r.category.clone();
                 }
                 ui.horizontal(|ui| {

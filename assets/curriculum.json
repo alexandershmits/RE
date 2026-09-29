@@ -2,7 +2,7 @@
  "version": 6,
  "course": {
   "title": "RE-50: Реверс-инжиниринг с нуля",
-  "subtitle": "36 недель · 3 семестра · от нуля до senior-аналитика",
+  "subtitle": "48 недель · 4 семестра · от нуля до senior-аналитика",
   "rules": [
    "Практика важнее чтения — 70/30.",
    "PSet сдан = решён + write-up в журнале + можешь объяснить каждое решение.",
@@ -1072,7 +1072,7 @@
     ]
    },
    "psets": [
-    "PSet37: APK разован: логика MainActivity восстановлена, 1 Frida-хук на Java-метод, модифицированная пересборка работает"
+    "PSet37: APK разобран: логика MainActivity восстановлена, 1 Frida-хук на Java-метод, модифицированная пересборка работает"
    ],
    "checkpoint": [
     "jadx/apktool — рутина; Frida-хук Java работает"
@@ -2142,7 +2142,7 @@
    "id": "q_w42a",
    "week": "w42",
    "module": 15,
-   "question": "Как в Go-бинаре найти main-функцию пользователя, если符号ов нет?",
+   "question": "Как в Go-бинаре найти main-функцию пользователя, если символов нет?",
    "answers": [
     "Искать строку 'main' через поиск строк",
     "runtime.main → переход/call на main.main; идти от точки входа через цепочку runtime",
@@ -2508,157 +2508,432 @@
    "id": "start",
    "name": "🧭 Первые шаги",
    "desc": "Сдан PSet0: лаборатория собрана, журнал создан",
-   "xp": 50
+   "xp": 50,
+   "when": {
+    "psets": [
+     "w0"
+    ]
+   }
   },
   {
    "id": "c_master",
-   "name": "🦀 Владею C",
+   "name": "💪 Владею C",
    "desc": "Сданы PSet1 (password_validator) и все квизы модуля 1 по C",
-   "xp": 100
+   "xp": 100,
+   "when": {
+    "psets": [
+     "w1-2"
+    ],
+    "quiz_modules": [
+     1
+    ]
+   }
   },
   {
    "id": "asm_master",
    "name": "⚙️ Читаю ассемблер",
    "desc": "Сданы PSet2, PSet3 — ручная декомпиляция и паттерны",
-   "xp": 150
+   "xp": 150,
+   "when": {
+    "psets": [
+     "w3-4",
+     "w5"
+    ]
+   }
   },
   {
    "id": "pe_master",
    "name": "📦 Разбираю PE",
    "desc": "Написан собственный парсер PE (PSet4)",
-   "xp": 150
+   "xp": 150,
+   "when": {
+    "psets": [
+     "w6"
+    ]
+   }
   },
   {
    "id": "ghidra_first",
    "name": "🐙 Ghidra не пугает",
    "desc": "Сданы PSet5–6: бинарь причёсан, 3 crackmes решены",
-   "xp": 200
+   "xp": 200,
+   "when": {
+    "psets": [
+     "w7",
+     "w8"
+    ]
+   }
   },
   {
    "id": "triage",
    "name": "🔬 Триаж-глаз",
    "desc": "PSet7: три отчёта триажа готовы",
-   "xp": 100
+   "xp": 100,
+   "when": {
+    "psets": [
+     "w9"
+    ]
+   }
   },
   {
    "id": "crackmes_20",
    "name": "🥊 Двадцать голов",
    "desc": "20+ crackmes решено (модуль 3)",
-   "xp": 300
+   "xp": 300,
+   "when": {
+    "psets": [
+     "w10-11",
+     "w12-13",
+     "w14"
+    ]
+   }
   },
   {
    "id": "keygen",
    "name": "🗝️ Ключген",
    "desc": "Написан собственный ключген с write-up",
-   "xp": 250
+   "xp": 250,
+   "when": {
+    "psets": [
+     "w12-13"
+    ]
+   }
   },
   {
    "id": "antidebug",
    "name": "🕵️ Обошёл анти-отладку",
    "desc": "IsDebuggerPresent и друзья побеждены (PSet12)",
-   "xp": 200
+   "xp": 200,
+   "when": {
+    "psets": [
+     "w14"
+    ]
+   }
   },
   {
    "id": "pwn_college",
    "name": "🎓 Студент pwn.college",
    "desc": "Закрыты модули Assembly и RE (PSet13–14)",
-   "xp": 300
+   "xp": 300,
+   "when": {
+    "psets": [
+     "w15-16",
+     "w17"
+    ]
+   }
   },
   {
    "id": "lab_ready",
    "name": "☣️ Лаборатория зла",
    "desc": "DEFCON-лаба собрана: ВМ + FakeNet-NG (PSet / нед. 18)",
-   "xp": 200
+   "xp": 200,
+   "when": {
+    "weeks": [
+     "w18"
+    ]
+   }
   },
   {
    "id": "full_pipeline",
    "name": "🩸 Полный пайплайн",
    "desc": "PSet16: сэмпл разобран от триажа до YARA + отчёт",
-   "xp": 500
+   "xp": 500,
+   "when": {
+    "psets": [
+     "w19-20"
+    ]
+   }
   },
   {
    "id": "ai_bridge",
    "name": "🤖 Агент подключён",
    "desc": "GhidraMCP работает, таблица доверия заполнена (PSet17)",
-   "xp": 250
+   "xp": 250,
+   "when": {
+    "psets": [
+     "w21"
+    ]
+   }
   },
   {
    "id": "quiz_90",
    "name": "🧠 Скальпель",
    "desc": "90%+ правильных ответов в тренажёре",
-   "xp": 200
+   "xp": 200,
+   "when": {
+    "quiz_percent": 90
+   }
   },
   {
    "id": "final",
    "name": "🏆 Выпускник RE-50",
    "desc": "Финальный проект сдан и защищён",
-   "xp": 1000
+   "xp": 1000,
+   "when": {
+    "weeks": [
+     "w23-24"
+    ],
+    "psets": [
+     "w23-24"
+    ]
+   }
   },
   {
    "id": "elf_master",
    "name": "🐧 ELFs-повелитель",
    "desc": "PSet19–21: парсер ELF, GDB-разбор, ROP Emporium",
-   "xp": 300
+   "xp": 300,
+   "when": {
+    "psets": [
+     "w25",
+     "w26",
+     "w27"
+    ]
+   }
   },
   {
    "id": "cpp_master",
    "name": "⚔️ C++-археолог",
    "desc": "Восстановлены классы и vtables (PSet22–23)",
-   "xp": 300
+   "xp": 300,
+   "when": {
+    "psets": [
+     "w28",
+     "w29"
+    ]
+   }
   },
   {
    "id": "net_master",
    "name": "🌐 Читаю провода",
    "desc": "Спецификация протокола + конфиг C2 (PSet24–25)",
-   "xp": 300
+   "xp": 300,
+   "when": {
+    "psets": [
+     "w30",
+     "w31"
+    ]
+   }
   },
   {
    "id": "auto_master",
    "name": "🛠 Автоматизатор",
    "desc": "Скрипты Ghidra + angr/Unicorn (PSet26–27)",
-   "xp": 350
+   "xp": 350,
+   "when": {
+    "psets": [
+     "w32",
+     "w33"
+    ]
+   }
   },
   {
    "id": "mal_master",
    "name": "💀 Против обфускации",
    "desc": "Классификация обфускаций + memory forensics (PSet28–29)",
-   "xp": 400
+   "xp": 400,
+   "when": {
+    "psets": [
+     "w34",
+     "w35"
+    ]
+   }
   },
   {
    "id": "senior",
    "name": "📈 Senior-грейд",
    "desc": "Финальный PSet30 сдан в стиле профессионального отчёта",
-   "xp": 1000
+   "xp": 1000,
+   "when": {
+    "psets": [
+     "w36"
+    ]
+   }
   },
   {
    "id": "community",
    "name": "🔥 Голос сообщества",
    "desc": "Write-up опубликован, фидбек получен и учтён (PSet31)",
-   "xp": 250
+   "xp": 250,
+   "when": {
+    "psets": [
+     "w37"
+    ]
+   }
   },
   {
    "id": "live_lab",
    "name": "🦠 Живая лаборатория",
    "desc": "5 свежих сэмплов + 2 проверенных YARA (PSet32)",
-   "xp": 300
+   "xp": 300,
+   "when": {
+    "psets": [
+     "w38"
+    ]
+   }
   },
   {
    "id": "deep_dive",
    "name": "🔬 Спринт глубины",
    "desc": "C++ deep-match + TTD (PSet33)",
-   "xp": 300
+   "xp": 300,
+   "when": {
+    "psets": [
+     "w39"
+    ]
+   }
   },
   {
    "id": "ctf_first",
    "name": "🚩 Первый CTF",
    "desc": "CTF пройден, rev-task сдан (PSet34)",
-   "xp": 300
+   "xp": 300,
+   "when": {
+    "psets": [
+     "w40"
+    ]
+   }
   },
   {
    "id": "ten_out_of_ten",
    "name": "⭐ Дорожка пройдена",
    "desc": "Все 4 PSets семестра Senior+ сданы",
-   "xp": 500
+   "xp": 500,
+   "when": {
+    "psets": [
+     "w37",
+     "w38",
+     "w39",
+     "w40"
+    ]
+   }
+  },
+  {
+   "id": "ai_accelerated",
+   "name": "⚡ AI-ускорение",
+   "desc": "PSet18: AI-ускоренный разбор сдан, выводы агента проверены вручную",
+   "xp": 250,
+   "when": {
+    "psets": [
+     "w22"
+    ]
+   }
+  },
+  {
+   "id": "dotnet_master",
+   "name": "🟣 .NET без секретов",
+   "desc": "PSet35: .NET crackme решён в dnSpyEx, de4dot отработал",
+   "xp": 300,
+   "when": {
+    "psets": [
+     "w41"
+    ]
+   }
+  },
+  {
+   "id": "modern_bins",
+   "name": "🦀 Rust и Go под лупой",
+   "desc": "PSet36: восстановлена main-логика Go-бинаря",
+   "xp": 300,
+   "when": {
+    "psets": [
+     "w42"
+    ]
+   }
+  },
+  {
+   "id": "mobile_intro",
+   "name": "📱 Android-разведка",
+   "desc": "PSet37: APK разобран, Frida-хук написан",
+   "xp": 300,
+   "when": {
+    "psets": [
+     "w43"
+    ]
+   }
+  },
+  {
+   "id": "oneday_analyst",
+   "name": "🩹 Патч-аналитик",
+   "desc": "PSet38: 1-day отчёт по двум версиям программы",
+   "xp": 350,
+   "when": {
+    "psets": [
+     "w44"
+    ]
+   }
+  },
+  {
+   "id": "macho_reader",
+   "name": "🍎 Mach-O без страха",
+   "desc": "PSet39: Mach-O через призму ELF/PE, разбор бинаря",
+   "xp": 300,
+   "when": {
+    "psets": [
+     "w45"
+    ]
+   }
+  },
+  {
+   "id": "task_author",
+   "name": "🎲 Автор задач",
+   "desc": "PSet40: собственный генератор учебных задач",
+   "xp": 300,
+   "when": {
+    "psets": [
+     "w46"
+    ]
+   }
+  },
+  {
+   "id": "firmware_dig",
+   "name": "🔌 Копаю прошивки",
+   "desc": "PSet41: отчёт по прошивке — карта распаковки, найденные секреты",
+   "xp": 350,
+   "when": {
+    "psets": [
+     "w47"
+    ]
+   }
+  },
+  {
+   "id": "crypto_id",
+   "name": "🔐 Крипто-детектив",
+   "desc": "PSet42: таблица крипто-маркеров, 10 алгоритмов",
+   "xp": 350,
+   "when": {
+    "psets": [
+     "w48"
+    ]
+   }
+  },
+  {
+   "id": "specialist",
+   "name": "🎖 Специалист Senior++",
+   "desc": "Сданы все PSet семестра «Специализации» (PSet35–37)",
+   "xp": 500,
+   "when": {
+    "psets": [
+     "w41",
+     "w42",
+     "w43"
+    ]
+   }
+  },
+  {
+   "id": "platform_master",
+   "name": "🏛 Мастер платформ",
+   "desc": "Сданы все PSet семестра «1-day и платформы» (PSet38–42)",
+   "xp": 700,
+   "when": {
+    "psets": [
+     "w44",
+     "w45",
+     "w46",
+     "w47",
+     "w48"
+    ]
+   }
   }
  ],
  "resources": [
@@ -3404,7 +3679,8 @@
    "desc": "strcmp со строкой-константой",
    "sha256": "303585d579fd492b",
    "file": "challenges/lv1a",
-   "file_exe": "challenges/lv1a.exe"
+   "file_exe": "challenges/lv1a.exe",
+   "sha256_exe": "9ab61ed69d445863"
   },
   {
    "id": "lv1b",
@@ -3415,7 +3691,8 @@
    "desc": "сравнение с константой",
    "sha256": "023159b8db70f916",
    "file": "challenges/lv1b",
-   "file_exe": "challenges/lv1b.exe"
+   "file_exe": "challenges/lv1b.exe",
+   "sha256_exe": "d4fb8a319978d203"
   },
   {
    "id": "lv1c",
@@ -3426,7 +3703,8 @@
    "desc": "конкатенация строк",
    "sha256": "f787006119508537",
    "file": "challenges/lv1c",
-   "file_exe": "challenges/lv1c.exe"
+   "file_exe": "challenges/lv1c.exe",
+   "sha256_exe": "4c22c5bd2be7d4d2"
   },
   {
    "id": "lv2a",
@@ -3437,7 +3715,8 @@
    "desc": "XOR-проверка числа",
    "sha256": "b63284c5b9640c79",
    "file": "challenges/lv2a",
-   "file_exe": "challenges/lv2a.exe"
+   "file_exe": "challenges/lv2a.exe",
+   "sha256_exe": "f41c53fe36357de0"
   },
   {
    "id": "lv2b",
@@ -3448,7 +3727,8 @@
    "desc": "массив байтов + XOR-маска",
    "sha256": "73d4d0fad7e5e0ea",
    "file": "challenges/lv2b",
-   "file_exe": "challenges/lv2b.exe"
+   "file_exe": "challenges/lv2b.exe",
+   "sha256_exe": "1c8743f8075ae661"
   },
   {
    "id": "lv2c",
@@ -3459,7 +3739,8 @@
    "desc": "сдвиг влево",
    "sha256": "34551cec2d6ce118",
    "file": "challenges/lv2c",
-   "file_exe": "challenges/lv2c.exe"
+   "file_exe": "challenges/lv2c.exe",
+   "sha256_exe": "890a0107d1a175ec"
   },
   {
    "id": "lv2d",
@@ -3470,7 +3751,8 @@
    "desc": "сдвиг вправо",
    "sha256": "66c21831c40af71a",
    "file": "challenges/lv2d",
-   "file_exe": "challenges/lv2d.exe"
+   "file_exe": "challenges/lv2d.exe",
+   "sha256_exe": "3248a39c5558926f"
   },
   {
    "id": "lv3a",
@@ -3481,7 +3763,8 @@
    "desc": "итеративный хеш строки",
    "sha256": "c42caa709a52ca94",
    "file": "challenges/lv3a",
-   "file_exe": "challenges/lv3a.exe"
+   "file_exe": "challenges/lv3a.exe",
+   "sha256_exe": "4a7c32302991191d"
   },
   {
    "id": "lv3b",
@@ -3492,7 +3775,8 @@
    "desc": "позиционный XOR",
    "sha256": "0c21b5b585eeaf4d",
    "file": "challenges/lv3b",
-   "file_exe": "challenges/lv3b.exe"
+   "file_exe": "challenges/lv3b.exe",
+   "sha256_exe": "f6a70be94e0bf47e"
   },
   {
    "id": "lv3c",
@@ -3503,7 +3787,8 @@
    "desc": "djb2-хеш",
    "sha256": "ca21d4fec018f20f",
    "file": "challenges/lv3c",
-   "file_exe": "challenges/lv3c.exe"
+   "file_exe": "challenges/lv3c.exe",
+   "sha256_exe": "55aa60e7edd1c626"
   },
   {
    "id": "lv4a",
@@ -3514,7 +3799,8 @@
    "desc": "трансформация ввода перед сравнением",
    "sha256": "661b3c12edfd7d75",
    "file": "challenges/lv4a",
-   "file_exe": "challenges/lv4a.exe"
+   "file_exe": "challenges/lv4a.exe",
+   "sha256_exe": "bc6d0a130df24b27"
   },
   {
    "id": "lv4b",
@@ -3525,7 +3811,8 @@
    "desc": "многоступенчатая проверка",
    "sha256": "25d3a1501952a33e",
    "file": "challenges/lv4b",
-   "file_exe": "challenges/lv4b.exe"
+   "file_exe": "challenges/lv4b.exe",
+   "sha256_exe": "922fbc3ef93a2cc9"
   },
   {
    "id": "lv4c",
@@ -3536,7 +3823,8 @@
    "desc": "без ключгена никак",
    "sha256": "d7c2b4cbeab48315",
    "file": "challenges/lv4c",
-   "file_exe": "challenges/lv4c.exe"
+   "file_exe": "challenges/lv4c.exe",
+   "sha256_exe": "805cfe6425ada714"
   },
   {
    "id": "lv5a",
@@ -3547,7 +3835,8 @@
    "flag": "il_st4ck_vm",
    "file": "challenges/lv5a",
    "sha256": "ee313ce56fe2c7b5",
-   "file_exe": "challenges/lv5a.exe"
+   "file_exe": "challenges/lv5a.exe",
+   "sha256_exe": "bf3a7acca7b0d4c3"
   },
   {
    "id": "lv5b",
@@ -3558,7 +3847,8 @@
    "flag": "go_pclnt4b",
    "file": "challenges/lv5b",
    "sha256": "1dd426f9913c50e5",
-   "file_exe": "challenges/lv5b.exe"
+   "file_exe": "challenges/lv5b.exe",
+   "sha256_exe": "d38e98d7731ad6b7"
   }
  ],
  "ethalon_writeups": [

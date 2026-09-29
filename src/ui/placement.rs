@@ -1,6 +1,6 @@
 use eframe::egui::{self, RichText};
 
-use super::{ACCENT, GOOD};
+use super::theme::{accent, good};
 use crate::state::AppState;
 
 pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
@@ -43,8 +43,8 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
         for (i, a) in q.a.iter().enumerate() {
             let mut text = RichText::new(format!("{}) {}", char::from(b'A' + i as u8), a));
             if pl.answered {
-                if i == q.correct { text = text.color(GOOD).strong(); }
-                else if Some(i) == pl.selected { text = text.color(ACCENT).strong(); }
+                if i == q.correct { text = text.color(good()).strong(); }
+                else if Some(i) == pl.selected { text = text.color(accent()).strong(); }
             }
             if ui.add_enabled(!pl.answered, egui::Button::new(text).wrap_mode(egui::TextWrapMode::Wrap)).clicked() {
                 click = Some(i);
@@ -57,8 +57,8 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
         }
         if pl.answered {
             let ok = pl.selected == Some(q.correct);
-            ui.label(if ok { RichText::new("✔ Верно").color(GOOD) } else {
-                RichText::new(format!("✘ Неверно. Тема относится к неделе {}", q.week)).color(ACCENT)
+            ui.label(if ok { RichText::new("✔ Верно").color(good()) } else {
+                RichText::new(format!("✘ Неверно. Тема относится к неделе {}", q.week)).color(accent())
             });
             if ui.button("Далее →").clicked() {
                 pl.pos += 1; pl.selected = None; pl.answered = false;

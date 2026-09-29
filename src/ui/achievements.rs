@@ -1,6 +1,6 @@
 use eframe::egui::{self, RichText, ScrollArea};
 
-use super::WARN;
+use super::theme::warn;
 use crate::state::AppState;
 
 pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
@@ -31,7 +31,7 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
                                 ui.label(RichText::new(&a.desc).size(11.5));
                                 ui.label(
                                     RichText::new(format!("+{} XP", a.xp))
-                                        .color(WARN)
+                                        .color(warn())
                                         .size(11.0),
                                 );
                             } else {

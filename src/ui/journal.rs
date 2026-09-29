@@ -1,54 +1,30 @@
+use crate::state::AppState;
 use eframe::egui::{self, RichText, ScrollArea};
 
-use crate::state::AppState;
-
 pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
-    let ctx = &ui.ctx().clone();
+    let ctx = ui.ctx().clone();
     egui::CentralPanel::default().show(ui, |ui| {
         ui.heading("📓 Журнал");
-        ui.label(
-            RichText::new(
-                "Каждый разобранный бинарь: скриншоты, псевдокод, что понял / что не понял. \
-             Write-up каждого PSet — по правилам честности курса.",
-            )
-            .weak(),
-        );
+        ui.label(RichText::new("Каждый разобранный бинарь: скриншоты, псевдокод, что понял / что не понял. Write-up каждого PSet — по правилам честности курса. Сохраняется автоматически.").weak());
         ui.separator();
-        ui.horizontal(|ui| {
-            if ui
-                .small_button("📤 Экспорт журнала в ~/re50-journal.md")
-                .clicked()
-            {
-                match app.export_journal() {
-                    Ok(p) => app.toast(format!("Журнал сохранён: {p}"), ctx),
-                    Err(e) => app.toast(format!("Ошибка: {e}"), ctx),
-                }
+        if ui.small_button("📤 Экспорт журнала в re50-journal.md").clicked() {
+            match app.export_journal() {
+                Ok(p) => app.toast(format!("Журнал сохранён: {p}"), &ctx),
+                Err(e) => app.toast(format!("Ошибка: {e}"), &ctx),
             }
-        });
-        let mut text = app.progress.journal.clone();
-        let response = ScrollArea::vertical().id_salt("journal").show(ui, |ui| {
-            ui.add_sized(
-                [ui.available_width(), 500.0],
-                egui::TextEdit::multiline(&mut text)
-                    .desired_rows(24)
-                    .code_editor(),
-            )
-        });
-        if response.inner.changed() {
-            app.progress.journal = text.clone();
         }
-        // save button below also persists
-        ui.horizontal(|ui| {
-            ui.label(
-                RichText::new(format!("Символов: {}", app.progress.journal.len()))
-                    .weak()
-                    .size(11.0),
-            );
-            if ui.button("💾 Сохранить").clicked() {
-                app.progress.journal = text;
-                app.save();
-                app.toast("Журнал сохранён", ctx);
-            }
-        });
+        let mut text = app.progress.journal.clone();
+        let changed = ScrollArea::vertical()
+            .id_salt("journal")
+            .show(ui, |ui| {
+                let size = [ui.available_width(), (ui.available_height() - 30.0).max(200.0)];
+                ui.add_sized(size, egui::TextEdit::multiline(&mut text).code_editor()).changed()
+            })
+            .inner;
+        if changed {
+            app.progress.journal = text;
+            app.mark_dirty();
+        }
+        ui.label(RichText::new(format!("Символов: {}", app.progress.journal.chars().count())).weak().size(11.0));
     });
 }

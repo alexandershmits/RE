@@ -1,51 +1,41 @@
+use super::now_and_day;
+use super::theme::{accent, good, warn};
+use crate::state::{AppState, REEXAM_PASS_PERCENT, REEXAM_QUESTIONS};
 use eframe::egui::{self, RichText};
 
-use super::{ACCENT, GOOD, WARN};
-
-pub(super) fn show(app: &mut crate::state::AppState, ui: &mut egui::Ui) {
+pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
+    let ctx = ui.ctx().clone();
+    let (_, today) = now_and_day();
     egui::CentralPanel::default().show(ui, |ui| {
-        ui.heading(RichText::new("🎓 Monthly Re-certification").color(ACCENT));
+        ui.heading(RichText::new("🎓 Monthly Re-certification").color(accent()));
         ui.add_space(6.0);
-        ui.label("Раз в 30 дней приложение устраивает внезапный экзамен: 10 случайных задач из пройденного материала. Порог — 70%. Провал → темы возвращаются в слабые.");
+        ui.label(format!(
+            "Раз в 30 дней приложение устраивает внезапный экзамен: {REEXAM_QUESTIONS} случайных задач из пройденного материала. \
+             Порог — {REEXAM_PASS_PERCENT}%. Ошибочные вопросы возвращаются в слабые темы и карточки."
+        ));
         ui.add_space(10.0);
 
-        if let Some(score) = &app.progress.reexam_score {
-            let (date, c, t) = score;
-            let passed = (*c as f32) >= 0.7 * (*t as f32);
+        if let Some((date, correct, total)) = &app.progress.reexam_score {
+            let passed = correct * 100 >= total * REEXAM_PASS_PERCENT;
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!(
-                    "Последний результат: {c}/{t} ({})",
-                    if passed { "порог пройден ✔" } else { "ПРОВАЛ — повторите слабые темы" }
-                )).color(if passed { GOOD } else { WARN }));
+                let verdict = if passed { "порог пройден ✔" } else { "ПРОВАЛ — повторите слабые темы" };
+                ui.label(RichText::new(format!("Последний результат: {correct}/{total} ({verdict})")).color(if passed { good() } else { warn() }));
                 ui.label(RichText::new(date).weak());
             });
             ui.add_space(6.0);
         }
 
-        let due = {
-            let day = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs() / 86400)
-                .unwrap_or(0);
-            app.reexam_due(day)
-        };
-
-        if app.reexam.is_none() {
-            if due {
-                if ui.add(egui::Button::new(RichText::new("▶ Начать экзамен (10 вопросов)").color(ACCENT))).clicked() {
-                    let seed = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .map(|d| d.as_secs())
-                        .unwrap_or(1);
-                    app.start_reexam(seed);
+        let Some(rx) = app.reexam.as_ref() else {
+            if app.reexam_due(today) {
+                let start = egui::Button::new(RichText::new(format!("▶ Начать экзамен ({REEXAM_QUESTIONS} вопросов)")).color(accent()));
+                if ui.add(start).clicked() {
+                    app.start_reexam(crate::rng::time_seed());
                 }
             } else {
                 ui.label(RichText::new("⏳ Экзамен пока не назначен — пройдите больше материала.").weak());
             }
             return;
-        }
-
-        let Some(rx) = app.reexam.as_mut() else { return; };
+        };
         if rx.finished {
             ui.label("Экзамен завершён. Результат сохранён.");
             if ui.button("Закрыть").clicked() {
@@ -54,54 +44,42 @@ pub(super) fn show(app: &mut crate::state::AppState, ui: &mut egui::Ui) {
             return;
         }
 
-        let total = rx.questions.len();
-        ui.label(format!("Вопрос {} / {}", rx.pos + 1, total));
-        let q = &rx.questions[rx.pos];
+        let (pos, total, answered, selected) = (rx.pos, rx.questions.len(), rx.answered, rx.selected);
+        let q = rx.questions[pos].clone();
+        ui.label(format!("Вопрос {} / {total}", pos + 1));
         ui.add_space(4.0);
         ui.label(RichText::new(&q.question).size(16.0));
         ui.add_space(4.0);
-        for (i, a) in q.answers.iter().enumerate() {
-            let is_sel = rx.selected == Some(i);
-            if ui.add(egui::RadioButton::new(is_sel, a)).clicked() && !rx.answered {
-                rx.selected = Some(i);
+        for (i, answer) in q.answers.iter().enumerate() {
+            if ui.radio(selected == Some(i), answer).clicked() && !answered {
+                if let Some(rx) = app.reexam.as_mut() {
+                    rx.selected = Some(i);
+                }
             }
         }
         ui.add_space(8.0);
-        if !rx.answered {
-            if ui.add(egui::Button::new("Ответить")).clicked() {
-                if let Some(sel) = rx.selected {
-                    rx.answered = true;
-                    if sel == q.correct { rx.correct += 1; }
+        if !answered {
+            if ui.add_enabled(selected.is_some(), egui::Button::new("Ответить")).clicked() {
+                if let Some(sel) = selected {
+                    app.reexam_answer(sel);
                 }
             }
+            return;
+        }
+        if selected == Some(q.correct) {
+            ui.label(RichText::new("✔ Верно").color(good()));
         } else {
-            let sel_ok = rx.selected == Some(q.correct);
-            ui.label(
-                RichText::new(if sel_ok { "✔ Верно".to_string() } else {
-                    format!("✘ Неверно. Правильный ответ: {}", q.answers[q.correct])
-                })
-                .color(if sel_ok { GOOD } else { WARN }),
-            );
-            ui.label(RichText::new(&q.explain).weak().size(12.0));
-            ui.add_space(6.0);
-            let last = rx.pos + 1 >= total;
-            let date = {
-                let secs = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_secs()).unwrap_or(0);
-                // days since epoch -> yyyy-mm-dd approx
-                let days = secs / 86400;
-                let y = 1970 + days / 365;
-                format!("re-exam day {days} (~{y})")
-            };
-            if ui.add(egui::Button::new(if last { "Завершить экзамен" } else { "Далее ▶" })).clicked() {
-                if last {
-                    app.finish_reexam(date);
-                } else {
-                    rx.pos += 1;
-                    rx.selected = None;
-                    rx.answered = false;
-                }
+            ui.label(RichText::new(format!("✘ Неверно. Правильный ответ: {}", q.answers[q.correct])).color(warn()));
+        }
+        ui.label(RichText::new(&q.explain).weak().size(12.0));
+        ui.add_space(6.0);
+        let last = pos + 1 >= total;
+        if ui.button(if last { "Завершить экзамен" } else { "Далее ▶" }).clicked() {
+            if last {
+                let message = app.finish_reexam(today);
+                app.toast_for(message, &ctx, 8.0);
+            } else {
+                app.reexam_next();
             }
         }
     });
