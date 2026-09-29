@@ -7,6 +7,27 @@ const GOOD: Color32 = Color32::from_rgb(90, 200, 120);
 const WARN: Color32 = Color32::from_rgb(240, 180, 70);
 
 pub fn run(app: &mut AppState, ctx: &egui::Context) {
+    // Горячие клавиши: Ctrl+K — фокус поиска, Ctrl+1..9 — вкладки, Ctrl+J — журнал
+    ctx.input(|i| {
+        if i.modifiers.command {
+            let keys = [egui::Key::Num1, egui::Key::Num2, egui::Key::Num3, egui::Key::Num4,
+                        egui::Key::Num5, egui::Key::Num6, egui::Key::Num7, egui::Key::Num8,
+                        egui::Key::Num9];
+            let tabs = [Tab::Dashboard, Tab::Course, Tab::Trainer, Tab::Achievements,
+                        Tab::Resources, Tab::Journal, Tab::Cards, Tab::Drills, Tab::Challenges];
+            for (key, tab) in keys.iter().zip(tabs.iter()) {
+                if i.key_pressed(*key) {
+                    app.tab = *tab;
+                }
+            }
+            if i.key_pressed(egui::Key::J) {
+                app.tab = Tab::Journal;
+            }
+            if i.key_pressed(egui::Key::K) {
+                app.search_focus = true;
+            }
+        }
+    });
     // toast
     if let Some((_msg, until)) = app.toast.clone() {
         if app.now(ctx) > until {
@@ -89,13 +110,33 @@ pub fn run(app: &mut AppState, ctx: &egui::Context) {
             ui.label(RichText::new(&app.curriculum.course.subtitle).weak().size(12.0));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // Глобальный поиск
-                let resp = ui.add(
-                    egui::TextEdit::singleline(&mut app.search_query)
-                        .hint_text("🔍 Поиск по курсу...")
-                        .desired_width(200.0),
-                );
+                let editor = egui::TextEdit::singleline(&mut app.search_query)
+                    .hint_text("🔍 Поиск (Ctrl+K)")
+                    .desired_width(200.0)
+                    .id(egui::Id::new("global_search"));
+                let resp = ui.add(editor);
+                if app.search_focus {
+                    resp.request_focus();
+                    app.search_focus = false;
+                }
                 if resp.changed() {
                     app.search_results = app.search_course(&app.search_query);
+                }
+                // Настройки вида
+                if ui.small_button("🌓").on_hover_text("Светлая/тёмная тема").clicked() {
+                    app.progress.theme = if app.progress.theme == "light" { "dark".into() } else { "light".into() };
+                    app.apply_style(ui.ctx());
+                    app.save();
+                }
+                if ui.small_button("A−").on_hover_text("Меньше шрифт").clicked() {
+                    app.progress.font_scale = (app.progress.font_scale - 0.1).max(0.8);
+                    app.apply_style(ui.ctx());
+                    app.save();
+                }
+                if ui.small_button("A+").on_hover_text("Больше шрифт").clicked() {
+                    app.progress.font_scale = (app.progress.font_scale + 0.1).min(2.0);
+                    app.apply_style(ui.ctx());
+                    app.save();
                 }
                 ui.label(RichText::new(format!("⭐ {} XP", app.progress.xp)).color(WARN));
                 let pct = app.overall_percent();
@@ -248,6 +289,23 @@ fn dashboard(app: &mut AppState, ctx: &egui::Context) {
             ui.heading(RichText::new(&app.curriculum.course.title).color(ACCENT).size(26.0));
 
             // Поведенческий анализ (анти-паттерны)
+            // Статистика времени
+            {
+                let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+                let today = (now / 86400).to_string();
+                let mut last7 = 0u64;
+                for d in (now / 86400).saturating_sub(6)..=(now / 86400) {
+                    last7 += app.progress.time_by_day.get(&d.to_string()).copied().unwrap_or(0);
+                }
+                let total: u64 = app.progress.time_by_day.values().sum();
+                let today_s = app.progress.time_by_day.get(&today).copied().unwrap_or(0) + app.progress.pending_seconds;
+                let fmt = |s: u64| if s >= 3600 { format!("{:.1} ч", s as f32 / 3600.0) } else { format!("{} мин", s / 60) };
+                ui.add_space(4.0);
+                ui.label(RichText::new(format!(
+                    "⏱ Сегодня: {} | 7 дней: {} | Всего: {}",
+                    fmt(today_s), fmt(last7), fmt(total)
+                )).size(13.0).color(egui::Color32::from_rgb(120, 170, 230)));
+            }
             // Точность интуиции (ставки)
             if !app.progress.bet_results.is_empty() {
                 let total = app.progress.bet_results.len();
@@ -410,6 +468,24 @@ fn dashboard(app: &mut AppState, ctx: &egui::Context) {
             });
             ui.add_space(10.0);
 
+            ui.heading("💾 Перенос профиля");
+            ui.horizontal(|ui| {
+                if ui.button("Экспорт профиля → ~/re50-profile.json").clicked() {
+                    match app.export_profile_file() {
+                        Ok(p) => app.toast(format!("Профиль сохранён: {p}"), ctx),
+                        Err(e) => app.toast(format!("Ошибка: {e}"), ctx),
+                    }
+                }
+                if ui.button("Импорт профиля ← ~/re50-profile.json").clicked() {
+                    match app.import_profile_file() {
+                        Ok(msg) => app.toast(msg, ctx),
+                        Err(e) => app.toast(format!("Ошибка: {e}"), ctx),
+                    }
+                }
+            });
+            ui.label(RichText::new("Полный перенос прогресса на другую машину: экспортируйте файл, скопируйте на цель, импортируйте.").weak().size(12.0));
+            ui.add_space(10.0);
+
             ui.heading("📤 Карточка прогресса");
             ui.horizontal(|ui| {
                 if ui.button("Сгенерировать карточку прогресса").clicked() {
@@ -486,6 +562,14 @@ fn course(app: &mut AppState, ctx: &egui::Context) {
                 ui.strong(&week.title);
             });
             ui.label(RichText::new(app.curriculum.module_name(week.module)).weak());
+            ui.horizontal(|ui| {
+                if ui.small_button("📂 Открыть лабу недели (→ ~/re50-lab/)").clicked() {
+                    match app.export_week_lab(&week.id) {
+                        Some(dir) => app.toast(format!("TASK.md создан: {dir}"), ctx),
+                        None => app.toast("Не удалось создать лабу", ctx),
+                    }
+                }
+            });
             ui.separator();
 
             // 🎯 problem-first case

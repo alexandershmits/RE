@@ -60,6 +60,30 @@ mod tests {
     }
 
     #[test]
+    fn week_lab_export() {
+        let mut app = crate::state::AppState::for_test();
+        let dir = app.export_week_lab("w44").expect("export failed");
+        let task = std::path::PathBuf::from(&dir).join("TASK.md");
+        let content = std::fs::read_to_string(&task).expect("TASK.md missing");
+        assert!(content.contains("1-day") || content.contains("патч") || content.contains("PSet38"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn profile_export_import_roundtrip() {
+        let mut app = crate::state::AppState::for_test();
+        app.progress.xp = 777;
+        app.progress.theme = "light".into();
+        let p = app.export_profile_file().expect("export failed");
+        app.progress.xp = 0;
+        app.progress.theme = "dark".into();
+        app.import_profile_file().expect("import failed");
+        assert_eq!(app.progress.xp, 777);
+        assert_eq!(app.progress.theme, "light");
+        let _ = std::fs::remove_file(p);
+    }
+
+    #[test]
     fn journal_export_writes_file() {
         let mut app = crate::state::AppState::for_test();
         app.progress.journal = "Проверка экспорта".into();

@@ -49,6 +49,11 @@ pub struct Progress {
     /// последний unix-секунд тика
     #[serde(default)]
     pub last_tick: u64,
+    /// Настройки интерфейса: тема ("dark"/"light"), множитель шрифта (100..200)
+    #[serde(default = "default_theme")]
+    pub theme: String,
+    #[serde(default = "default_font_scale")]
+    pub font_scale: f32,
     /// Режим «Ставка»: challenge id -> гипотеза, написанная ДО решения
     #[serde(default)]
     pub challenge_bets: std::collections::HashMap<String, String>,
@@ -105,7 +110,7 @@ impl QuizSession {
 
 // ---------- app ----------
 
-#[derive(Default, PartialEq)]
+#[derive(Default, PartialEq, Clone, Copy)]
 pub enum Tab {
     #[default]
     Dashboard,
@@ -178,6 +183,7 @@ pub struct AppState {
     pub work: WorkSession,
     pub work_hypothesis_input: String,
     pub search_query: String,
+    pub search_focus: bool,
     pub search_results: Vec<(String, String, String)>,
     #[allow(dead_code)]
     pub import_text: String,
@@ -280,6 +286,9 @@ impl CardSession {
     }
 }
 
+fn default_theme() -> String { "dark".into() }
+fn default_font_scale() -> f32 { 1.0 }
+
 fn chrono_like_date() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -290,6 +299,51 @@ fn chrono_like_date() -> String {
 }
 
 impl AppState {
+    /// Экспорт лабы недели: ~/re50-lab/week_<id>/TASK.md с лекциями, шагами, PSet, чекпоинтом.
+    pub fn export_week_lab(&mut self, week_id: &str) -> Option<String> {
+        let w = self.curriculum.weeks.iter().find(|w| w.id == week_id)?.clone();
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+        let dir = std::path::PathBuf::from(home).join("re50-lab").join(format!("week_{}", w.id));
+        std::fs::create_dir_all(&dir).ok()?;
+        let mut md = format!("# {} — {}\n\n", w.label(), w.title);
+        md.push_str("## Лекции\n");
+        for l in &w.lectures { md.push_str(&format!("- {l}\n")); }
+        if let Some(lab) = &w.lab {
+            md.push_str(&format!("\n## {} \n", lab.title));
+            for (i, s) in lab.steps.iter().enumerate() { md.push_str(&format!("{}. {s}\n", i + 1)); }
+        }
+        md.push_str("\n## Problem Set\n");
+        for p in &w.psets { md.push_str(&format!("- {p}\n")); }
+        md.push_str("\n## Чекпоинт (самопроверка)\n");
+        for c in &w.checkpoint { md.push_str(&format!("- [ ] {c}\n")); }
+        if let Some(case) = &w.case {
+            md.push_str(&format!("\n## Проблема недели\n{case}\n"));
+        }
+        let path = dir.join("TASK.md");
+        std::fs::write(&path, md).ok()?;
+        Some(dir.display().to_string())
+    }
+
+    /// Экспорт всего профиля в файл ~/re50-profile.json (для переноса на другую машину)
+    pub fn export_profile_file(&mut self) -> Result<String, String> {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+        let path = std::path::PathBuf::from(home).join("re50-profile.json");
+        let json = serde_json::to_string_pretty(&self.progress).map_err(|e| e.to_string())?;
+        std::fs::write(&path, json).map_err(|e| e.to_string())?;
+        Ok(path.display().to_string())
+    }
+
+    /// Импорт профиля из ~/re50-profile.json с перезаписью текущего прогресса.
+    pub fn import_profile_file(&mut self) -> Result<String, String> {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+        let path = std::path::PathBuf::from(home).join("re50-profile.json");
+        let data = std::fs::read_to_string(&path).map_err(|e| format!("Нет файла {path:?}: {e}"))?;
+        let p: Progress = serde_json::from_str(&data).map_err(|e| format!("Повреждённый JSON: {e}"))?;
+        self.progress = p;
+        self.save();
+        Ok(format!("Профиль импортирован из {path:?}"))
+    }
+
     /// Экспорт журнала в ~/re50-journal.md
     pub fn export_journal(&mut self) -> Result<String, String> {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
@@ -506,6 +560,7 @@ impl AppState {
             work: WorkSession::new(),
             work_hypothesis_input: String::new(),
             search_query: String::new(),
+            search_focus: false,
             search_results: Vec::new(),
             import_text: String::new(),
             pset_pending_explain: None,
@@ -546,6 +601,7 @@ impl AppState {
             work: WorkSession::new(),
             work_hypothesis_input: String::new(),
             search_query: String::new(),
+            search_focus: false,
             search_results: Vec::new(),
             import_text: String::new(),
         }
@@ -558,15 +614,32 @@ impl AppState {
     pub fn configure(&mut self, cc: &eframe::CreationContext<'_>) {
         self.start_time = 0.0; // egui i.time is seconds since app start
         egui_extras_note(cc);
-        let mut style = (*cc.egui_ctx.style()).clone();
-        style.visuals.dark_mode = true;
-        style.visuals.panel_fill = egui::Color32::from_rgb(18, 20, 26);
-        style.visuals.window_fill = egui::Color32::from_rgb(22, 24, 32);
-        style.visuals.extreme_bg_color = egui::Color32::from_rgb(12, 13, 18);
+        self.apply_style(&cc.egui_ctx);
+    }
+
+    /// Применить тему/шрифт/масштаб из настроек.
+    pub fn apply_style(&self, ctx: &egui::Context) {
+        let mut style = (*ctx.style()).clone();
+        let light = self.progress.theme == "light";
+        style.visuals.dark_mode = !light;
+        if light {
+            style.visuals.panel_fill = egui::Color32::from_rgb(245, 245, 248);
+            style.visuals.window_fill = egui::Color32::from_rgb(255, 255, 255);
+            style.visuals.extreme_bg_color = egui::Color32::from_rgb(232, 232, 238);
+        } else {
+            style.visuals.panel_fill = egui::Color32::from_rgb(18, 20, 26);
+            style.visuals.window_fill = egui::Color32::from_rgb(22, 24, 32);
+            style.visuals.extreme_bg_color = egui::Color32::from_rgb(12, 13, 18);
+        }
         style.visuals.selection.bg_fill = egui::Color32::from_rgb(200, 40, 60);
         style.visuals.hyperlink_color = egui::Color32::from_rgb(255, 110, 110);
         style.spacing.item_spacing = egui::vec2(8.0, 6.0);
-        cc.egui_ctx.set_style(style);
+        // масштаб шрифта
+        let scale = self.progress.font_scale.clamp(0.8, 2.0);
+        for font_id in style.text_styles.values_mut() {
+            font_id.size = (font_id.size * scale).clamp(8.0, 48.0);
+        }
+        ctx.set_style(style);
     }
 
     pub fn save(&mut self) {
@@ -575,6 +648,16 @@ impl AppState {
             .map(|d| d.as_secs())
             .unwrap_or(0);
         let day = now / 86400;
+        // учёт времени: дельта с прошлого сохранения, ограничена (anti-висение)
+        let delta = self.progress.last_tick;
+        let delta = if delta > 0 && now > delta { (now - delta).min(3600) } else { 0 };
+        self.progress.pending_seconds += delta;
+        self.progress.last_tick = now;
+        if self.progress.pending_seconds >= 30 {
+            let key = day.to_string();
+            *self.progress.time_by_day.entry(key).or_insert(0) += self.progress.pending_seconds;
+            self.progress.pending_seconds = 0;
+        }
         // streak
         if self.progress.streak.0 == 0 {
             self.progress.streak = (day, 1);
