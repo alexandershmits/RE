@@ -4,6 +4,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod challenge_blob;
+mod generator_script;
 mod curriculum;
 mod simulators;
 mod state;

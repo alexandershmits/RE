@@ -118,6 +118,7 @@ pub fn run(app: &mut AppState, ctx: &egui::Context) {
             (Tab::Sims, "⚙️", "Симуляторы"),
             (Tab::Drills, "🔁", "Дриллы (69)"),
             (Tab::Challenges, "🚩", "Челленджи (13)"),
+            (Tab::Reexam, "🎓", "Re-certification"),
         ] {
             let selected = app.tab == tab;
             if ui
@@ -155,6 +156,7 @@ pub fn run(app: &mut AppState, ctx: &egui::Context) {
         Tab::Sims => sims(app, ctx),
         Tab::Drills => drills(app, ctx),
         Tab::Challenges => challenges(app, ctx),
+        Tab::Reexam => reexam(app, ctx),
     }
     app.tab = tab;
 }
@@ -162,6 +164,31 @@ pub fn run(app: &mut AppState, ctx: &egui::Context) {
 fn dashboard(app: &mut AppState, ctx: &egui::Context) {
     egui::CentralPanel::default().show(ctx, |ui| {
         ScrollArea::vertical().show(ui, |ui| {
+            // Внезапный экзамен: баннер, когда срок подошёл
+            {
+                let day = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs() / 86400)
+                    .unwrap_or(0);
+                if app.reexam_due(day) {
+                    egui::Frame::group(ui.style())
+                        .fill(egui::Color32::from_rgb(46, 38, 20))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new("🎓 Пора на re-certification!").color(WARN).size(15.0));
+                                if ui.small_button("Начать").clicked() {
+                                    let seed = std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .map(|d| d.as_secs())
+                                        .unwrap_or(1);
+                                    app.start_reexam(seed);
+                                    app.tab = Tab::Reexam;
+                                }
+                            });
+                        });
+                    ui.add_space(6.0);
+                }
+            }
             ui.heading(RichText::new(&app.curriculum.course.title).color(ACCENT).size(26.0));
             ui.label(&app.curriculum.course.subtitle);
             ui.add_space(12.0);
@@ -1308,6 +1335,27 @@ fn drill_script(app: &mut AppState, ui: &mut egui::Ui) {
 fn challenges(app: &mut AppState, ctx: &egui::Context) {
     egui::CentralPanel::default().show(ctx, |ui| {
         ui.heading("🚩 Встроенные челленджи");
+        // Adversarial loop: генерация нового варианта
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("🎲 Adversarial loop:").strong());
+            if ui.small_button("Сгенерировать новый вариант (случайный флаг)").clicked() {
+                let lab = format!("{}/re50-generated", std::env::var("HOME").unwrap_or_default());
+                // вшитый скрипт -> temp file -> python3
+                let tmp = std::env::temp_dir().join("re50_challenge_generator.py");
+                let _ = std::fs::write(&tmp, crate::generator_script::GENERATOR_PY);
+                let out = std::process::Command::new("python3")
+                    .arg(&tmp).arg("all").arg(&lab)
+                    .output();
+                app.toast = Some((match out {
+                    Ok(o) if o.status.success() => format!(
+                        "🎲 5 новых челленджей сгенерированы в {} — флаги в .meta.json (не подглядывать, пока не решили!)", lab),
+                    Ok(o) => format!("Ошибка генератора: {}", String::from_utf8_lossy(&o.stderr)),
+                    Err(e) => format!("python3 не найден: {e}"),
+                }, 10.0));
+            }
+        });
+        ui.label(RichText::new("Та же логика проверки — но пароль/ключ/маска рандомизируются при каждой генерации. Запомнить ответ из райтапа невозможно: работает только понимание.").weak().size(12.0));
+        ui.add_space(6.0);
         ui.label(RichText::new(
             "13 учебных crackmes (Linux x86-64 ELF), собранных специально для курса.              Бинари лежат в assets/challenges/. Решите в Ghidra/x64dbg, введите флаг — приложение проверит.              +50 XP за флаг, подсказки внутри.")
             .weak());
@@ -1374,5 +1422,110 @@ fn challenges(app: &mut AppState, ctx: &egui::Context) {
                 });
             }
         });
+    });
+}
+
+fn reexam(app: &mut crate::state::AppState, ctx: &egui::Context) {
+    egui::CentralPanel::default().show(ctx, |ui| {
+        ui.heading(RichText::new("🎓 Monthly Re-certification").color(ACCENT));
+        ui.add_space(6.0);
+        ui.label("Раз в 30 дней приложение устраивает внезапный экзамен: 10 случайных задач из пройденного материала. Порог — 70%. Провал → темы возвращаются в слабые.");
+        ui.add_space(10.0);
+
+        if let Some(score) = &app.progress.reexam_score {
+            let (date, c, t) = score;
+            let passed = (*c as f32) >= 0.7 * (*t as f32);
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(format!(
+                    "Последний результат: {c}/{t} ({})",
+                    if passed { "порог пройден ✔" } else { "ПРОВАЛ — повторите слабые темы" }
+                )).color(if passed { GOOD } else { WARN }));
+                ui.label(RichText::new(date).weak());
+            });
+            ui.add_space(6.0);
+        }
+
+        let due = {
+            let day = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs() / 86400)
+                .unwrap_or(0);
+            app.reexam_due(day)
+        };
+
+        if app.reexam.is_none() {
+            if due {
+                if ui.add(egui::Button::new(RichText::new("▶ Начать экзамен (10 вопросов)").color(ACCENT))).clicked() {
+                    let seed = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(1);
+                    app.start_reexam(seed);
+                }
+            } else {
+                ui.label(RichText::new("⏳ Экзамен пока не назначен — пройдите больше материала.").weak());
+            }
+            return;
+        }
+
+        let Some(rx) = app.reexam.as_mut() else { return; };
+        if rx.finished {
+            ui.label("Экзамен завершён. Результат сохранён.");
+            if ui.button("Закрыть").clicked() {
+                app.reexam = None;
+            }
+            return;
+        }
+
+        let total = rx.questions.len();
+        ui.label(format!("Вопрос {} / {}", rx.pos + 1, total));
+        let q = &rx.questions[rx.pos];
+        ui.add_space(4.0);
+        ui.label(RichText::new(&q.question).size(16.0));
+        ui.add_space(4.0);
+        for (i, a) in q.answers.iter().enumerate() {
+            let is_sel = rx.selected == Some(i);
+            if ui.add(egui::RadioButton::new(is_sel, a)).clicked() && !rx.answered {
+                rx.selected = Some(i);
+            }
+        }
+        ui.add_space(8.0);
+        if !rx.answered {
+            if ui.add(egui::Button::new("Ответить")).clicked() {
+                if let Some(sel) = rx.selected {
+                    rx.answered = true;
+                    if sel == q.correct { rx.correct += 1; }
+                }
+            }
+        } else {
+            let sel_ok = rx.selected == Some(q.correct);
+            ui.label(
+                RichText::new(if sel_ok { "✔ Верно".to_string() } else {
+                    format!("✘ Неверно. Правильный ответ: {}", q.answers[q.correct])
+                })
+                .color(if sel_ok { GOOD } else { WARN }),
+            );
+            ui.label(RichText::new(&q.explain).weak().size(12.0));
+            ui.add_space(6.0);
+            let last = rx.pos + 1 >= total;
+            let date = {
+                let secs = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs()).unwrap_or(0);
+                // days since epoch -> yyyy-mm-dd approx
+                let days = secs / 86400;
+                let y = 1970 + days / 365;
+                format!("re-exam day {days} (~{y})")
+            };
+            if ui.add(egui::Button::new(if last { "Завершить экзамен" } else { "Далее ▶" })).clicked() {
+                if last {
+                    app.finish_reexam(date);
+                } else {
+                    rx.pos += 1;
+                    rx.selected = None;
+                    rx.answered = false;
+                }
+            }
+        }
     });
 }

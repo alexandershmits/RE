@@ -23,6 +23,12 @@ pub struct Progress {
     pub achievements: HashSet<String>,
     pub journal: String,
     pub xp: u32,
+    /// monthly re-certification: (дата, верных, всего)
+    #[serde(default)]
+    pub reexam_score: Option<(String, u32, u32)>,
+    /// день (unix/день года) последнего запуска re-exam
+    #[serde(default)]
+    pub last_reexam_day: Option<u64>,
     #[serde(default)]
     pub card_levels: std::collections::HashMap<String, u8>,
     /// pset key -> student's self-explanation (rule of honesty)
@@ -101,6 +107,7 @@ pub enum Tab {
     Sims,
     Drills,
     Challenges,
+    Reexam,
 }
 
 #[derive(Default)]
@@ -145,8 +152,19 @@ pub struct AppState {
     pub progress_export_text: String,
     pub pset_pending_explain: Option<String>,
     pub challenge_input: std::collections::HashMap<String, String>,
+    pub reexam: Option<ReexamState>,
     #[allow(dead_code)]
     pub import_text: String,
+}
+
+/// Ежемесячная рекертификация: 10 случайных задач из пройденного материала.
+pub struct ReexamState {
+    pub questions: Vec<crate::curriculum::Quiz>,
+    pub pos: usize,
+    pub selected: Option<usize>,
+    pub correct: u32,
+    pub answered: bool,
+    pub finished: bool,
 }
 
 pub struct PlacementState {
@@ -182,6 +200,74 @@ impl CardSession {
 }
 
 impl AppState {
+    /// Прошло ли >=30 дней с последнего re-exam (или никогда не было).
+    pub fn reexam_due(&self, day: u64) -> bool {
+        match self.progress.last_reexam_day {
+            Some(d) => day.saturating_sub(d) >= 30,
+            None => self.progress.xp > 300, // имеет смысл после первой недели
+        }
+    }
+
+    /// Запустить внезапный экзамен: 10 случайных квизов из пройденных недель.
+    pub fn start_reexam(&mut self, seed: u64) {
+        let done: Vec<&crate::curriculum::Quiz> = self
+            .curriculum
+            .quizzes
+            .iter()
+            .filter(|q| {
+                self.progress
+                    .quiz_correct
+                    .contains(&q.id)
+            })
+            .collect();
+        // Если мало пройденных — добираем случайными из всех
+        let mut pool: Vec<crate::curriculum::Quiz> =
+            if done.len() >= 10 { done.into_iter().cloned().collect() }
+            else { self.curriculum.quizzes.clone() };
+        // shuffle LCG with seed
+        let mut s = seed | 1;
+        for i in (1..pool.len()).rev() {
+            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let j = (s >> 33) as usize % (i + 1);
+            pool.swap(i, j);
+        }
+        pool.truncate(10);
+        self.reexam = Some(ReexamState {
+            questions: pool,
+            pos: 0,
+            selected: None,
+            correct: 0,
+            answered: false,
+            finished: false,
+        });
+    }
+
+    pub fn finish_reexam(&mut self, date: String) {
+        if let Some(rx) = &self.reexam {
+            let (c, t) = (rx.correct, rx.questions.len() as u32);
+            self.progress.reexam_score = Some((date, c, t));
+            // ниже порога 70% -> соответствующие темы снова в слабые (сброс quiz_correct)
+            if (c as f32) < 0.7 * (t as f32) {
+                self.toast = Some((
+                    format!("Re-certification: {c}/{t}. Порог 70% не пройден — перерешайте квизы слабых недель."),
+                    8.0,
+                ));
+            } else {
+                self.toast = Some((format!("Re-certification: {c}/{t} — порог пройден ✔"), 6.0));
+            }
+            let day = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs() / 86400)
+                .unwrap_or(0);
+            self.progress.last_reexam_day = Some(day);
+        }
+        if let Some(rx) = &mut self.reexam {
+            rx.finished = true;
+        }
+    }
+}
+
+impl AppState {
     #[allow(dead_code)]
     pub fn with_curriculum(curriculum: Curriculum) -> Self {
         let progress = Progress::default();
@@ -200,6 +286,7 @@ impl AppState {
             sim: SimState::default(),
             drill: DrillState::default(),
             challenge_input: std::collections::HashMap::new(),
+            reexam: None,
             import_text: String::new(),
             pset_pending_explain: None,
             progress_export_text: String::new(),
@@ -226,6 +313,7 @@ impl AppState {
             progress_export_text: String::new(),
             pset_pending_explain: None,
             challenge_input: std::collections::HashMap::new(),
+            reexam: None,
             import_text: String::new(),
         }
     }
