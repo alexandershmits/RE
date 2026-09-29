@@ -192,6 +192,25 @@ fn dashboard(app: &mut AppState, ctx: &egui::Context) {
                 }
             }
             ui.heading(RichText::new(&app.curriculum.course.title).color(ACCENT).size(26.0));
+
+            // Поведенческий анализ (анти-паттерны)
+            {
+                let findings = crate::detector::analyze(&app.progress, &app.curriculum);
+                if !findings.is_empty() {
+                    ui.add_space(8.0);
+                    ui.label(RichText::new("🔎 Поведенческий анализ").strong().size(15.0));
+                    for f in &findings {
+                        egui::Frame::group(ui.style()).fill(egui::Color32::from_rgb(40, 40, 30)).show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(format!("{} {}", f.severity.icon(), f.title))
+                                    .color(f.severity.color32()).strong());
+                            });
+                            ui.label(RichText::new(&f.advice).size(13.0));
+                        });
+                        ui.add_space(4.0);
+                    }
+                }
+            }
             ui.label(&app.curriculum.course.subtitle);
             ui.add_space(12.0);
 

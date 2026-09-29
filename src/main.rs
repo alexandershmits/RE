@@ -6,6 +6,7 @@
 mod challenge_blob;
 mod generator_script;
 mod opponent;
+mod detector;
 mod curriculum;
 mod simulators;
 mod state;
@@ -45,6 +46,26 @@ mod tests {
         assert!(c.quizzes.len() >= 60);
         assert!(c.drills.asm.len() + c.drills.addr.len() + c.drills.pattern.len() + c.drills.script.len() >= 69);
         assert!(!c.challenges.is_empty(), "no challenges");
+    }
+
+    #[test]
+    fn detector_flags_theorist() {
+        use crate::state::Progress;
+        let c = Curriculum::load();
+        let mut p = Progress::default();
+        // квизы есть — практики нет
+        for i in 0..15 {
+            p.quiz_correct.insert(format!("q{i}"));
+        }
+        let findings = crate::detector::analyze(&p, &c);
+        assert!(findings.iter().any(|f| f.title.contains("Теоретик")), "no theorist flag: {:?}", findings.iter().map(|f| &f.title).collect::<Vec<_>>());
+        // сбалансированный прогресс — позитив
+        let mut p2 = Progress::default();
+        for i in 0..12 { p2.quiz_correct.insert(format!("q{i}")); }
+        for i in 0..6 { p2.lab_steps_done.insert(format!("w:lab{i}")); }
+        for i in 0..4 { p2.challenges_solved.insert(format!("lv{i}a")); }
+        let f2 = crate::detector::analyze(&p2, &c);
+        assert!(f2.iter().any(|f| f.title.contains("Баланс")), "no balance flag");
     }
 
     #[test]
