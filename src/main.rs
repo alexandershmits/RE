@@ -50,7 +50,7 @@ mod tests {
 
     #[test]
     fn search_finds_content() {
-        let mut app = crate::state::AppState::for_test();
+        let app = crate::state::AppState::for_test();
         let r = app.search_course("Ghidra");
         assert!(!r.is_empty(), "search for Ghidra found nothing");
         let r2 = app.search_course("x");

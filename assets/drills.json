@@ -7,12 +7,12 @@
     "ret"
    ],
    "answers": [
-    "a+5",
+    "адрес a+5",
     "a*5",
     "a-5",
-    "адрес a+5"
+    "a+5"
    ],
-   "correct": 0,
+   "correct": 3,
    "explain": "lea с константой — обычное сложение."
   },
   {
@@ -24,9 +24,9 @@
    ],
    "answers": [
     "a*8",
-    "a^8",
     "a/8",
-    "a+8"
+    "a+8",
+    "a^8"
    ],
    "correct": 0,
    "explain": "shl на 3 = умножение на 8."
@@ -40,9 +40,9 @@
    ],
    "answers": [
     "a/4 (sar: signed)",
-    "a*4",
     "a%4",
-    "a-4"
+    "a-4",
+    "a*4"
    ],
    "correct": 0,
    "explain": "sar 2 = деление на 4 со знаком; unsigned был бы shr."
@@ -56,12 +56,12 @@
     "ret"
    ],
    "answers": [
-    "1 если a==b, иначе 0",
+    "a при a==b",
     "разность a-b",
-    "всегда 1",
-    "a при a==b"
+    "1 если a==b, иначе 0",
+    "всегда 1"
    ],
-   "correct": 0,
+   "correct": 2,
    "explain": "sete ставит 1 при ZF=1."
   },
   {
@@ -89,12 +89,12 @@
     "ret"
    ],
    "answers": [
+    "0",
     "-a",
-    "a",
     "~a",
-    "0"
+    "a"
    ],
-   "correct": 0,
+   "correct": 1,
    "explain": "neg — two's complement."
   },
   {
@@ -105,12 +105,12 @@
     "ret"
    ],
    "answers": [
+    "a+255",
     "a XOR 255",
     "a AND 255",
-    "a OR 255",
-    "a+255"
+    "a OR 255"
    ],
-   "correct": 0,
+   "correct": 1,
    "explain": "xor с маской — флип битов."
   },
   {
@@ -121,12 +121,12 @@
     "ret"
    ],
    "answers": [
+    "a mod 16 нет",
     "младшие 4 бита",
     "старшие 4 бита",
-    "a mod 16 нет",
     "a+15"
    ],
-   "correct": 0,
+   "correct": 1,
    "explain": "AND 0b1111 — младший ниббл."
   },
   {
@@ -141,8 +141,8 @@
    ],
    "answers": [
     "1 при a>10 (signed)",
-    "1 при a>=10",
     "1 при a<10",
+    "1 при a>=10",
     "1 при a==10"
    ],
    "correct": 0,
@@ -161,8 +161,8 @@
    "answers": [
     "1 при a>10 (unsigned)",
     "то же что jg",
-    "1 при a>=10",
-    "1 всегда"
+    "1 всегда",
+    "1 при a>=10"
    ],
    "correct": 0,
    "explain": "ja — unsigned; jg — signed. Разница при старшем бите!"
@@ -193,12 +193,12 @@
     "ret"
    ],
    "answers": [
-    "-a",
     "a+1",
-    "~a",
-    "0"
+    "-a",
+    "0",
+    "~a"
    ],
-   "correct": 0,
+   "correct": 1,
    "explain": "not+inc = neg."
   },
   {
@@ -210,12 +210,12 @@
     "ret"
    ],
    "answers": [
-    "цифра первого символа",
+    "0",
     "ASCII целиком",
     "длину строки",
-    "0"
+    "цифра первого символа"
    ],
-   "correct": 0,
+   "correct": 3,
    "explain": "AND байт + sub 0x30 = из ASCII в число."
   },
   {
@@ -241,12 +241,12 @@
     "ret"
    ],
    "answers": [
-    "поле c (offset 8)",
+    "поле a",
     "поле c (offset 4)",
     "поле b",
-    "поле a"
+    "поле c (offset 8)"
    ],
-   "correct": 0,
+   "correct": 3,
    "explain": "a@0,b@4,c@8: смещение = размер предыдущих полей."
   },
   {
@@ -257,12 +257,12 @@
     "ret"
    ],
    "answers": [
-    "a mod 8 (для положит.)",
     "a/8",
+    "a-8",
     "младший бит",
-    "a-8"
+    "a mod 8 (для положит.)"
    ],
-   "correct": 0,
+   "correct": 3,
    "explain": "mod 2^n = AND (2^n - 1)."
   },
   {
@@ -274,12 +274,12 @@
     "ret"
    ],
    "answers": [
-    "a + b*c",
     "(a+b)*c",
+    "a + b*c",
     "a*b + c",
     "a+b+c"
    ],
-   "correct": 0,
+   "correct": 1,
    "explain": "imul первым — приоритет операций виден в asm."
   },
   {
@@ -291,12 +291,12 @@
     "ret"
    ],
    "answers": [
-    "a, или -1 при a==0",
-    "a-1",
     "-1 всегда",
-    "a==0"
+    "a, или -1 при a==0",
+    "a==0",
+    "a-1"
    ],
-   "correct": 0,
+   "correct": 1,
    "explain": "База -1, cmovne перекрывает."
   },
   {
@@ -307,8 +307,8 @@
    ],
    "answers": [
     "третий элемент int-массива",
-    "второй",
     "байт по адресу+2",
+    "второй",
     "адрес"
    ],
    "correct": 0,
@@ -323,12 +323,12 @@
     "ret"
    ],
    "answers": [
-    "1 если чётное",
     "1 если нечётное",
-    "младший бит",
-    "a-1"
+    "a-1",
+    "1 если чётное",
+    "младший бит"
    ],
-   "correct": 0,
+   "correct": 2,
    "explain": "(a&1) XOR 1 = инверсия младшего бита = чётность."
   }
  ],
@@ -603,9 +603,9 @@
    "asm": "mov eax, 0\nL: add eax, [rcx]\nadd rcx, 4\ndec edx\njnz L",
    "answers": [
     "XOR-шифрование",
-    "strlen",
+    "strcmp",
     "сумма элементов массива (цикл)",
-    "strcmp"
+    "strlen"
    ],
    "correct": 2,
    "explain": "add [rcx] с шагом 4 = int-массив; dec/jnz — счётчик."
@@ -624,43 +624,43 @@
   {
    "asm": "L: cmp al, [rcx]\njz found\ninc rcx\ntest al, al\njnz L",
    "answers": [
+    "memcpy",
     "strlen",
     "поиск символа в строке",
-    "free",
-    "memcpy"
+    "free"
    ],
-   "correct": 1,
+   "correct": 2,
    "explain": "cmp + скан до нуля — strchr-паттерн."
   },
   {
    "asm": "cmp byte [rcx], 0\nje L2\ninc rcx\njmp L1\nL2:",
    "answers": [
     "atoi",
-    "memset",
     "strlen",
+    "memset",
     "strcpy"
    ],
-   "correct": 2,
+   "correct": 1,
    "explain": "счётчик до нуль-терминатора."
   },
   {
    "asm": "push rbx\nmov rbx, rcx\npop rbx\nret",
    "answers": [
+    "XOR-шифрование",
     "switch",
     "сохранение callee-saved регистра",
-    "XOR-шифрование",
     "рекурсия"
    ],
-   "correct": 1,
+   "correct": 2,
    "explain": "push/pop rbx вокруг тела — rbx callee-saved!"
   },
   {
    "asm": "cmp eax, 1\nje A\ncmp eax, 2\nje B\ncmp eax, 3\nje C",
    "answers": [
     "рекурсия",
-    "jump table",
+    "цикл",
     "switch (if-else chain)",
-    "цикл"
+    "jump table"
    ],
    "correct": 2,
    "explain": "цепочка cmp/je — простейший switch."
@@ -668,46 +668,45 @@
   {
    "asm": "jmp dword [rax*4 + 0x401000]",
    "answers": [
-    "XOR",
     "memcpy",
     "call stack",
-    "jump table (таблица переходов)"
+    "jump table (таблица переходов)",
+    "XOR"
    ],
-   "correct": 3,
+   "correct": 2,
    "explain": "адрес = таблица + индекс*4 — оптимизированный switch."
   },
   {
    "asm": "movaps xmm0, [rcx]\npaddb xmm0, xmm1",
    "answers": [
     "string",
+    "SIMD/SSE",
     "stack",
-    "XOR",
-    "SIMD-обработка (SSE)",
-    "SIMD/SSE"
+    "XOR"
    ],
-   "correct": 3,
+   "correct": 1,
    "explain": "xmm регистры + padd = параллельная обработка."
   },
   {
    "asm": "call qword [rip+0x2F1A]",
    "answers": [
-    "switch",
-    "рекурсия",
     "обфускация",
-    "вызов через IAT/GOT (импорт)"
+    "вызов через IAT/GOT (импорт)",
+    "рекурсия",
+    "switch"
    ],
-   "correct": 3,
+   "correct": 1,
    "explain": "косвенный вызов через таблицу импортов."
   },
   {
    "asm": "mov eax, [rcx]\ncmp eax, 0x534F4C45\njz found_magic",
    "answers": [
-    "проверка магической константы",
-    "malloc",
     "обфускация",
-    "strlen"
+    "malloc",
+    "strlen",
+    "проверка магической константы"
    ],
-   "correct": 0,
+   "correct": 3,
    "explain": "0x534F4C45 = 'LEOS' little-endian — поиск сигнатуры."
   },
   {
@@ -715,8 +714,8 @@
    "answers": [
     "call",
     "обработка знака (модуль)",
-    "XOR",
-    "switch"
+    "switch",
+    "XOR"
    ],
    "correct": 1,
    "explain": "js (знак) + neg — работа с модулем числа."
@@ -724,42 +723,42 @@
   {
    "asm": "L: rol eax, 7\nadd eax, 0x1234\nloop L",
    "answers": [
-    "AES",
-    "хеш-функция (не-криптостойкая)",
     "копирование",
-    "strlen"
+    "strlen",
+    "AES",
+    "хеш-функция (не-криптостойкая)"
    ],
-   "correct": 1,
+   "correct": 3,
    "explain": "rol + add в цикле — классический хеш."
   },
   {
    "asm": "movzx eax, byte [rcx+rdx]\nxor eax, r8d",
    "answers": [
-    "sum",
     "copy",
     "switch",
-    "по-байтовый XOR двух буферов"
+    "по-байтовый XOR двух буферов",
+    "sum"
    ],
-   "correct": 3,
+   "correct": 2,
    "explain": "movzx байтов + xor — расшифровка или сравнение."
   },
   {
    "asm": "sub rsp, 0x200\nmov [rsp+0x40], rcx",
    "answers": [
-    "XOR",
     "импорт",
-    "выделение локальных переменных (стек-кадр)",
-    "jump table"
+    "XOR",
+    "jump table",
+    "выделение локальных переменных (стек-кадр)"
    ],
-   "correct": 2,
+   "correct": 3,
    "explain": "sub rsp — резерв кадра; [rsp+X] — локалы."
   },
   {
    "asm": "lea rax, [rip+0x1F2A]",
    "answers": [
-    "jump table",
     "stack",
     "XOR",
+    "jump table",
     "RIP-relative адрес (глобал/PIE)"
    ],
    "correct": 3,
@@ -768,23 +767,23 @@
   {
    "asm": "if (buf[i] == 0x63 && buf[i+1] == 0x7C) ... /* таблица 256 байт начинается 63 7C 77 7B */",
    "answers": [
-    "RC4",
     "AES S-box (таблица подстановки)",
-    "CRC32-таблица",
-    "Base64-алфавит"
+    "Base64-алфавит",
+    "RC4",
+    "CRC32-таблица"
    ],
-   "correct": 1,
+   "correct": 0,
    "explain": "63 7C 77 7B F2 — первые байты AES S-box. Увидел — это AES: ищи ExpandKey (Rcon 01 02 04...)."
   },
   {
    "asm": "x ^= x << 13; x ^= x >> 7; x ^= x << 17;",
    "answers": [
-    "MD5-раунд",
-    "xorshift-ГПСЧ",
     "CRC-обновление",
-    "AES MixColumns"
+    "MD5-раунд",
+    "AES MixColumns",
+    "xorshift-ГПСЧ"
    ],
-   "correct": 1,
+   "correct": 3,
    "explain": "Классический xorshift32 (Marsaglia). Используется как ГПСЧ и как дешёвый «шифр» строк в малвари."
   },
   {
@@ -812,65 +811,65 @@
   {
    "asm": "v = _rotl(v, 7); v += k[round%4]; v ^= k[(round+1)%4];",
    "answers": [
-    "AES-раунд",
     "TEA/XTEA-подобный раунд",
     "MD5-функция",
-    "Base64-шаг"
+    "Base64-шаг",
+    "AES-раунд"
    ],
-   "correct": 1,
+   "correct": 0,
    "explain": "rotl+add+xor с ключами — профиль TEA/XTEA (дельта 0x9E3779B9 рядом подтвердит)."
   },
   {
    "asm": "if ((magic[0]=='e')&&(magic[1]=='x')&&(magic[2]=='p')&&(magic[3]=='a')&&(magic[4]=='n')&&(magic[5]=='d'))",
    "answers": [
     "Проверка ELF-заголовка",
-    "ChaCha/Salsa20 ('expand 32-byte k')",
     "ZIP-сигнатура",
+    "ChaCha/Salsa20 ('expand 32-byte k')",
     "Проверка PAR2"
    ],
-   "correct": 1,
+   "correct": 2,
    "explain": "«expand 32-byte k» — константа sigma ChaCha20/Salsa20. Малварь часто шифрует C2-трафик именно этими шифрами."
   },
   {
    "asm": "mov rax, [rcx]; mov rax, [rax+0x10]; call qword [rax+0x18]",
    "answers": [
-    "Чтение поля структуры",
-    "Вызов через vtable: объект -> vptr -> слот метода",
+    "SEH-установка",
     "Косвенный syscall",
-    "SEH-установка"
+    "Чтение поля структуры",
+    "Вызов через vtable: объект -> vptr -> слот метода"
    ],
-   "correct": 1,
+   "correct": 3,
    "explain": "[obj] = указатель на vtable, +0x10 — поле/RTTI, call [rax+0x18] — вызов 3-го виртуального метода. Профиль C++ в декомпиле."
   },
   {
    "asm": "movsxd rax, dword [rdi + rsi*4]; /* таблица int32 */ add rax, rdi; jmp rax",
    "answers": [
-    "Switch jump table (RIP-relative в GCC/MSVC)",
-    "Виртуальный вызов",
     "Хвостовая рекурсия",
-    "Возврат struct"
+    "Возврат struct",
+    "Switch jump table (RIP-relative в GCC/MSVC)",
+    "Виртуальный вызов"
    ],
-   "correct": 0,
+   "correct": 2,
    "explain": "Классический jump table: смещение int32 из таблицы + база = адрес case-ветки. rsi — значение switch."
   },
   {
    "asm": "/* строка в .rodata: \"go:buildid\" ; функция получает rsp-относительный локальный стек растущих структур */\nmov rbx, gs:[0x30]",
    "answers": [
-    "PEB-доступ",
-    "TLS/Go g-структура через segment register",
+    "Обращение к TEB Win32",
     "Возврат по vtable",
-    "Обращение к TEB Win32"
+    "PEB-доступ",
+    "TLS/Go g-структура через segment register"
    ],
-   "correct": 1,
+   "correct": 3,
    "explain": "gs:[0x30] в Linux-Go — доступ к g (горутине) через TLS. Профиль Go-runtime (в Windows-Go — через gs тоже)."
   },
   {
    "asm": "ldarg.0 / ldstr \"key\" / call string::op_Equality / brfalse.s L / ldc.i4.1 / ret",
    "answers": [
-    "x86-ассемблер",
+    "Lua-байткод",
     "IL (.NET): метод проверяет строковый аргумент",
     "Java-байткод",
-    "Lua-байткод"
+    "x86-ассемблер"
    ],
    "correct": 1,
    "explain": "Мнемоники ldarg/ldstr/brfalse — чистый CIL. Эквивалент C#: bool Check(string s) => s == \"key\";"

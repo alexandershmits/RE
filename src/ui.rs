@@ -1415,7 +1415,9 @@ fn drill_common_choice_ui(
         app.drill.checked = true;
         let ok = c == correct;
         if ok {
-            app.drill.solved.insert(format!("{id_tag}{}", app.drill.idx));
+            let key = format!("{id_tag}{}", app.drill.idx);
+            app.drill.solved.insert(key.clone());
+            app.progress.drills_solved.insert(key);
             app.add_xp(xp);
             app.toast(format!("Верно! +{xp} XP"), ui.ctx());
         }
@@ -1491,7 +1493,8 @@ fn drill_script(app: &mut AppState, ui: &mut egui::Ui) {
         if ui.button("💡 Показать эталон").clicked() { app.drill.show_answer = !app.drill.show_answer; }
         if ui.button("✔ Знаю это").clicked() {
             let id = format!("scr{}", app.drill.idx);
-            if app.drill.solved.insert(id) {
+            if app.drill.solved.insert(id.clone()) {
+                app.progress.drills_solved.insert(id);
                 app.add_xp(10);
                 app.toast("Засчитано! +10 XP", ui.ctx());
             }

@@ -40,6 +40,9 @@ pub struct Progress {
     /// XP history: (unix_day, total_xp) — sampled on each save, capped at 400 points
     #[serde(default)]
     pub xp_history: Vec<(u64, u32)>,
+    /// Решённые дриллы (id = "cat:idx"), персистентно
+    #[serde(default)]
+    pub drills_solved: std::collections::HashSet<String>,
     /// Время занятий: unix_day -> секунды в приложении (сэмпл при save)
     #[serde(default)]
     pub time_by_day: std::collections::HashMap<String, u64>,
@@ -579,6 +582,7 @@ impl AppState {
     pub fn load_or_default() -> Self {
         let curriculum = Curriculum::load();
         let progress = Self::read_progress_file().unwrap_or_default();
+        let drill = DrillState { solved: progress.drills_solved.clone(), ..DrillState::default() };
         Self {
             curriculum,
             progress,
@@ -592,7 +596,7 @@ impl AppState {
             cards: None,
             placement: None,
             sim: SimState::default(),
-            drill: DrillState::default(),
+            drill,
             progress_export_text: String::new(),
             pset_pending_explain: None,
             challenge_input: std::collections::HashMap::new(),
