@@ -108,6 +108,7 @@ pub enum Tab {
     Drills,
     Challenges,
     Reexam,
+    Opponent,
 }
 
 #[derive(Default)]
@@ -153,6 +154,7 @@ pub struct AppState {
     pub pset_pending_explain: Option<String>,
     pub challenge_input: std::collections::HashMap<String, String>,
     pub reexam: Option<ReexamState>,
+    pub opponent: OpponentState,
     #[allow(dead_code)]
     pub import_text: String,
 }
@@ -165,6 +167,18 @@ pub struct ReexamState {
     pub correct: u32,
     pub answered: bool,
     pub finished: bool,
+}
+
+/// Socratic-оппонент: вопрос, ответ студента, оценка, история.
+#[derive(Default)]
+pub struct OpponentState {
+    pub q_index: usize,
+    pub answer: String,
+    pub verdict: Option<(u8, String)>, // (score, critique)
+    pub llm_reply: Option<String>,
+    pub llm_model: String,
+    pub llm_in_flight: bool,
+    pub best_scores: std::collections::HashMap<String, u8>,
 }
 
 pub struct PlacementState {
@@ -287,6 +301,7 @@ impl AppState {
             drill: DrillState::default(),
             challenge_input: std::collections::HashMap::new(),
             reexam: None,
+            opponent: OpponentState::default(),
             import_text: String::new(),
             pset_pending_explain: None,
             progress_export_text: String::new(),
@@ -314,6 +329,7 @@ impl AppState {
             pset_pending_explain: None,
             challenge_input: std::collections::HashMap::new(),
             reexam: None,
+            opponent: OpponentState::default(),
             import_text: String::new(),
         }
     }

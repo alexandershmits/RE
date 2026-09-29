@@ -5,6 +5,7 @@
 
 mod challenge_blob;
 mod generator_script;
+mod opponent;
 mod curriculum;
 mod simulators;
 mod state;
@@ -44,6 +45,21 @@ mod tests {
         assert!(c.quizzes.len() >= 60);
         assert!(c.drills.asm.len() + c.drills.addr.len() + c.drills.pattern.len() + c.drills.script.len() >= 69);
         assert!(!c.challenges.is_empty(), "no challenges");
+    }
+
+    #[test]
+    fn opponent_evaluates() {
+        let q = &crate::opponent::QUESTIONS[0];
+        // короткий ответ — 0
+        assert_eq!(crate::opponent::evaluate(q, "не знаю").score, 0);
+        // ответ с ключевыми словами — высокий
+        let good = crate::opponent::evaluate(q,
+            "lea вычисляет адрес и кладёт его в регистр, не обращаясь к памяти, а mov разыменовывает адрес и читает память; mov упадёт, если указатель невалиден");
+        assert!(good.score >= 50, "score={}", good.score);
+        // пустые маркеры штрафуются
+        let bad = crate::opponent::evaluate(q, "это просто одно и то же, наверное, не знаю точно но думаю что просто одинаково работают всегда");
+        assert!(bad.score < good.score);
+        assert_eq!(crate::opponent::QUESTIONS.len(), 14);
     }
 
     #[test]
