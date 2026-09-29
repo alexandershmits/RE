@@ -170,3 +170,106 @@ impl OepTask {
         ]
     }
 }
+
+
+// ============ ГЕНЕРАТИВНЫЕ СИМУЛЯТОРЫ: бесконечная практика ============
+
+/// LCG для воспроизводимой рандомизации
+pub struct Rng(u64);
+impl Rng {
+    pub fn new(seed: u64) -> Self { Rng(seed | 1) }
+    pub fn next(&mut self) -> u64 {
+        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 >> 33
+    }
+    pub fn below(&mut self, n: u64) -> u64 { self.next() % n }
+}
+
+pub enum GenKind {
+    RipRelative,   // адрес = RIP + disp
+    LittleEndian,  // собери значение из байтов
+    DecodeMov,     // найди значение регистра после серии mov/xor/add
+}
+
+impl GenKind {
+    pub fn title(&self) -> &'static str {
+        match self {
+            GenKind::RipRelative => "🎲 RIP-relative адрес",
+            GenKind::LittleEndian => "🎲 Little-endian разбор",
+            GenKind::DecodeMov => "🎲 Трасса регистров",
+        }
+    }
+}
+
+pub struct GenTask {
+    #[allow(dead_code)]
+    pub kind_title: String,
+    pub question: String,
+    pub answer: String,   // hex-строка без 0x, lowercase
+    pub explain: String,
+}
+
+pub fn generate(kind: &GenKind, seed: u64) -> GenTask {
+    let mut r = Rng::new(seed);
+    match kind {
+        GenKind::RipRelative => {
+            let rip = 0x140001000u64 + r.below(0x1000);
+            let disp = r.below(0x200) as i64 - 0x100;
+            let target = (rip as i64 + disp) as u64;
+            GenTask {
+                kind_title: kind.title().into(),
+                question: format!(
+                    "Инструкция: mov rax, [rip + {:#x}]\nRIP на СЛЕДУЮЩЕЙ инструкции = {:#x}\nКакой адрес читается?",
+                    disp, rip
+                ),
+                answer: format!("{:x}", target),
+                explain: format!(
+                    "RIP-relative: цель = RIP_следующей + disp = {:#x} {:+#x} = {:#x}. RIP всегда указывает на СЛЕДУЮЩУЮ инструкцию, а не текущую!",
+                    rip, disp, target
+                ),
+            }
+        }
+        GenKind::LittleEndian => {
+            let val: u64 = r.below(0x100000000);
+            let b = [(val & 0xFF) as u8, ((val >> 8) & 0xFF) as u8, ((val >> 16) & 0xFF) as u8, ((val >> 24) & 0xFF) as u8];
+            let val4 = r.below(0x10000) as u16;
+            let w = [(val4 & 0xFF) as u8, (val4 >> 8) as u8];
+            GenTask {
+                kind_title: kind.title().into(),
+                question: format!(
+                    "В памяти по адресу X лежат байты (слева направо): {:02X} {:02X} {:02X} {:02X} | {:02X} {:02X}\nКакое 32-битное значение прочитает mov eax, [X]?",
+                    b[0], b[1], b[2], b[3], w[0], w[1]
+                ),
+                answer: format!("{:x}", val),
+                explain: format!(
+                    "Little-endian: младший байт по младшему адресу. {:#x} = {:02X} {:02X} {:02X} {:02X} в памяти. Первые 4 байта читаются как dword: {:#x}.",
+                    val, b[0], b[1], b[2], b[3], val
+                ),
+            }
+        }
+        GenKind::DecodeMov => {
+            let a = r.below(0xFF);
+            let k = r.below(0xFF) | 1;
+            let b = (a ^ k) & 0xFF;
+            let c = (b.wrapping_add(0x10)) & 0xFF;
+            GenTask {
+                kind_title: kind.title().into(),
+                question: format!(
+                    "mov al, {:#x}\nxor al, {:#x}\nadd al, 0x10\nЧему равен AL (hex)?",
+                    a, k
+                ),
+                answer: format!("{:x}", c),
+                explain: format!(
+                    "{:#x} ^ {:#x} = {:#x}; {:#x} + 0x10 = {:#x}. Трасса пошагово: не в голове, а на бумаге!",
+                    a, k, b, b, c
+                ),
+            }
+        }
+    }
+}
+
+/// Проверка ответа студента (hex без 0x, допуск 0x-префикса и регистра)
+pub fn check_gen(task: &GenTask, student: &str) -> bool {
+    let norm = |s: &str| s.trim().trim_start_matches("0x").to_lowercase();
+    norm(student) == task.answer
+}

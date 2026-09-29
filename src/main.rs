@@ -42,10 +42,29 @@ mod tests {
     #[test]
     fn curriculum_parses() {
         let c = Curriculum::load();
-        assert!(c.weeks.len() >= 37, "weeks missing");
-        assert!(c.quizzes.len() >= 60);
+        assert!(c.weeks.len() >= 42, "weeks missing");
+        assert!(c.quizzes.len() >= 90);
         assert!(c.drills.asm.len() + c.drills.addr.len() + c.drills.pattern.len() + c.drills.script.len() >= 89);
         assert!(c.challenges.len() >= 15, "challenges missing");
+    }
+
+    #[test]
+    fn generative_simulators() {
+        use crate::simulators::{generate, check_gen, GenKind};
+        // детерминизм: тот же seed — та же задача
+        let t1 = generate(&GenKind::RipRelative, 42);
+        let t2 = generate(&GenKind::RipRelative, 42);
+        assert_eq!(t1.question, t2.question);
+        assert!(check_gen(&t1, &t2.answer));
+        let t3 = generate(&GenKind::RipRelative, 43);
+        let _ = t3;
+        // check_gen принимает 0x префикс
+        assert!(check_gen(&t1, &format!("0x{}", t1.answer)));
+        // LE и decode работают
+        let le = generate(&GenKind::LittleEndian, 7);
+        assert!(check_gen(&le, &le.answer));
+        let dec = generate(&GenKind::DecodeMov, 9);
+        assert!(check_gen(&dec, &dec.answer));
     }
 
     #[test]

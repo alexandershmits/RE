@@ -997,11 +997,15 @@ fn placement(app: &mut AppState, ctx: &egui::Context) {
 
 fn sims(app: &mut AppState, ctx: &egui::Context) {
     egui::CentralPanel::default().show(ctx, |ui| {
+        if app.sim.which == 3 {
+            sims_generative(app, ui);
+            return;
+        }
         ui.heading("⚙️ Микро-симуляторы");
         ui.label(RichText::new("Потрогайте теорию руками, не открывая отладчик: предскажи регистры, распарси PE-байты, найди OEP.").weak());
         ui.separator();
         ui.horizontal(|ui| {
-            for (i, name) in ["🧮 Регистры и инструкции", "📦 PE-байты", "🔍 Поиск OEP"].iter().enumerate() {
+            for (i, name) in ["🧮 Регистры и инструкции", "📦 PE-байты", "🔍 Поиск OEP", "🎲 Бесконечный генератор"].iter().enumerate() {
                 if ui.selectable_label(app.sim.which == i, *name).clicked() {
                     app.sim = Default::default();
                     app.sim.which = i;
@@ -1715,3 +1719,66 @@ fn opponent_tab(app: &mut AppState, ctx: &egui::Context) {
         }
     });
 }
+
+fn sims_generative(app: &mut AppState, ui: &mut egui::Ui) {
+    use crate::simulators::{generate, check_gen, GenKind};
+    ui.add_space(8.0);
+    ui.label(RichText::new("Бесконечные задачи с рандомизацией: каждый «Новый вопрос» — новая задача. Запомнить ответы невозможно — работает только навык.").weak());
+
+    let kinds = [GenKind::RipRelative, GenKind::LittleEndian, GenKind::DecodeMov];
+    ui.horizontal(|ui| {
+        for (i, k) in kinds.iter().enumerate() {
+            if ui.selectable_label(app.sim.gen_kind == i, k.title()).clicked() {
+                app.sim.gen_kind = i;
+                app.sim.gen_seed = 0;
+                app.sim.gen_feedback = None;
+                app.sim.gen_answer.clear();
+            }
+        }
+    });
+    ui.add_space(6.0);
+
+    // Текущая задача генерируется детерминированно из seed (0 = сгенерировать)
+    if app.sim.gen_seed == 0 {
+        app.sim.gen_seed = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(1);
+        app.sim.gen_feedback = None;
+        app.sim.gen_answer.clear();
+    }
+    let task = generate(&kinds[app.sim.gen_kind], app.sim.gen_seed);
+
+    ui.group(|ui| {
+        ui.label(RichText::new(&task.question).size(15.0).monospace());
+    });
+    ui.add_space(6.0);
+
+    ui.horizontal(|ui| {
+        ui.label("Ответ:");
+        ui.add(egui::TextEdit::singleline(&mut app.sim.gen_answer).desired_width(160.0).hint_text("hex, напр. 1a2b"));
+        if ui.add(egui::Button::new("Проверить")).clicked() {
+            let ok = check_gen(&task, &app.sim.gen_answer);
+            app.sim.gen_feedback = Some((ok, task.explain.clone()));
+            if ok {
+                app.add_xp(10);
+            }
+        }
+        if ui.button("🎲 Новый вопрос").clicked() {
+            app.sim.gen_seed = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos() as u64)
+                .unwrap_or(2);
+            app.sim.gen_feedback = None;
+            app.sim.gen_answer.clear();
+        }
+    });
+
+    if let Some((ok, explain)) = &app.sim.gen_feedback {
+        ui.add_space(6.0);
+        ui.label(RichText::new(if *ok { "✔ Верно! +10 XP" } else { "✘ Неверно" })
+            .color(if *ok { GOOD } else { WARN }).strong());
+        ui.label(RichText::new(explain).size(12.0));
+    }
+}
+

@@ -131,7 +131,11 @@ pub struct DrillState {
 
 #[derive(Default)]
 pub struct SimState {
-    pub which: usize,            // 0=regs 1=pe 2=oep
+    pub which: usize,            // 0=regs 1=pe 2=oep 3=generative
+    pub gen_kind: usize,         // 0=rip 1=le 2=decode
+    pub gen_seed: u64,
+    pub gen_answer: String,
+    pub gen_feedback: Option<(bool, String)>,
     pub task_idx: usize,
     pub show_answer: bool,
     pub user_input: std::collections::HashMap<String, String>, // regs task: reg->hex
