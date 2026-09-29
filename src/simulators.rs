@@ -171,24 +171,30 @@ impl OepTask {
     }
 }
 
-
 // ============ ГЕНЕРАТИВНЫЕ СИМУЛЯТОРЫ: бесконечная практика ============
 
 /// LCG для воспроизводимой рандомизации
 pub struct Rng(u64);
 impl Rng {
-    pub fn new(seed: u64) -> Self { Rng(seed | 1) }
+    pub fn new(seed: u64) -> Self {
+        Rng(seed | 1)
+    }
     pub fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 = self
+            .0
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.0 >> 33
     }
-    pub fn below(&mut self, n: u64) -> u64 { self.next() % n }
+    pub fn below(&mut self, n: u64) -> u64 {
+        self.next() % n
+    }
 }
 
 pub enum GenKind {
-    RipRelative,   // адрес = RIP + disp
-    LittleEndian,  // собери значение из байтов
-    DecodeMov,     // найди значение регистра после серии mov/xor/add
+    RipRelative,  // адрес = RIP + disp
+    LittleEndian, // собери значение из байтов
+    DecodeMov,    // найди значение регистра после серии mov/xor/add
 }
 
 impl GenKind {
@@ -205,7 +211,7 @@ pub struct GenTask {
     #[allow(dead_code)]
     pub kind_title: String,
     pub question: String,
-    pub answer: String,   // hex-строка без 0x, lowercase
+    pub answer: String, // hex-строка без 0x, lowercase
     pub explain: String,
 }
 
@@ -231,7 +237,12 @@ pub fn generate(kind: &GenKind, seed: u64) -> GenTask {
         }
         GenKind::LittleEndian => {
             let val: u64 = r.below(0x100000000);
-            let b = [(val & 0xFF) as u8, ((val >> 8) & 0xFF) as u8, ((val >> 16) & 0xFF) as u8, ((val >> 24) & 0xFF) as u8];
+            let b = [
+                (val & 0xFF) as u8,
+                ((val >> 8) & 0xFF) as u8,
+                ((val >> 16) & 0xFF) as u8,
+                ((val >> 24) & 0xFF) as u8,
+            ];
             let val4 = r.below(0x10000) as u16;
             let w = [(val4 & 0xFF) as u8, (val4 >> 8) as u8];
             GenTask {

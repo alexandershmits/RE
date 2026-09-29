@@ -84,7 +84,11 @@ pub fn analyze(p: &Progress, _c: &Curriculum) -> Vec<Finding> {
     }
 
     // 4. ПАССИВНОЕ ПОТРЕБЛЕНИЕ: недели отмечены, чекпоинтов мало
-    let total_checkpoints: usize = p.checkpoint.values().map(|v| v.iter().filter(|b| **b).count()).sum();
+    let total_checkpoints: usize = p
+        .checkpoint
+        .values()
+        .map(|v| v.iter().filter(|b| **b).count())
+        .sum();
     if weeks >= 2 && total_checkpoints < weeks * 2 {
         out.push(Finding {
             severity: Severity::Info,

@@ -68,13 +68,12 @@ pub struct Progress {
     pub streak: (u64, u32),
 }
 
-impl Progress {
-}
+impl Progress {}
 
 // ---------- quiz runner state (not persisted) ----------
 
 pub struct QuizSession {
-    pub order: Vec<usize>,          // indices into curriculum quizzes
+    pub order: Vec<usize>, // indices into curriculum quizzes
     pub pos: usize,
     pub selected: Option<usize>,
     pub submitted: bool,
@@ -94,7 +93,9 @@ impl QuizSession {
             .unwrap_or(42);
         let mut x = seed | 1;
         for i in (1..order.len()).rev() {
-            x = x.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            x = x
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let j = (x >> 33) as usize % (i + 1);
             order.swap(i, j);
         }
@@ -137,7 +138,7 @@ pub enum Tab {
 
 #[derive(Default)]
 pub struct DrillState {
-    pub which: usize,   // 0=asm 1=addr 2=pattern 3=script
+    pub which: usize, // 0=asm 1=addr 2=pattern 3=script
     pub idx: usize,
     pub choice: Option<usize>,
     pub checked: bool,
@@ -149,8 +150,8 @@ pub struct DrillState {
 
 #[derive(Default)]
 pub struct SimState {
-    pub which: usize,            // 0=regs 1=pe 2=oep 3=generative
-    pub gen_kind: usize,         // 0=rip 1=le 2=decode
+    pub which: usize,    // 0=regs 1=pe 2=oep 3=generative
+    pub gen_kind: usize, // 0=rip 1=le 2=decode
     pub gen_seed: u64,
     pub gen_answer: String,
     pub gen_feedback: Option<(bool, String)>,
@@ -171,7 +172,7 @@ pub struct AppState {
     pub quiz: Option<QuizSession>,
     #[allow(dead_code)]
     pub quiz_feedback: Vec<(String, bool)>, // (quiz id, was correct) last session
-    pub toast: Option<(String, f64)>,       // message, expiry (seconds since app start)
+    pub toast: Option<(String, f64)>, // message, expiry (seconds since app start)
     pub start_time: f64,
     pub new_achievements: Vec<String>,
     pub cards: Option<CardSession>,
@@ -206,22 +207,24 @@ pub struct ReexamState {
 #[derive(Default)]
 pub struct WorkSession {
     pub active: bool,
-    pub challenge_id: String,        // какой бинарь "пришёл" по тикету
+    pub challenge_id: String, // какой бинарь "пришёл" по тикету
     pub started_unix: u64,
     /// порядок действий: какие этапы закрыты и в каком порядке
-    pub stages_done: Vec<String>,    // "triage","static","dynamic","report"
-    pub hypotheses: Vec<String>,     // гипотезы как в «Ставке»
-    pub triage_notes: String,        // заметки триажа
+    pub stages_done: Vec<String>, // "triage","static","dynamic","report"
+    pub hypotheses: Vec<String>, // гипотезы как в «Ставке»
+    pub triage_notes: String,    // заметки триажа
     pub static_notes: String,
     pub dynamic_notes: String,
-    pub report: [String; 10],        // по rubric (10 пунктов)
+    pub report: [String; 10], // по rubric (10 пунктов)
     pub flag_found: bool,
     /// история закрытых тикетов: (id, секунд, гипотезы_верны, отчёт_полнота%)
     pub history: Vec<(String, u64, bool, u8)>,
 }
 
 impl WorkSession {
-    pub fn new() -> Self { Default::default() }
+    pub fn new() -> Self {
+        Default::default()
+    }
 
     /// Порядок этапов корректен? (триаж раньше динамики, отчёт последним)
     pub fn methodology_ok(&self) -> Result<(), String> {
@@ -281,16 +284,28 @@ impl CardSession {
             .unwrap_or(7);
         let mut x = seed | 1;
         for i in (1..order.len()).rev() {
-            x = x.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            x = x
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let j = (x >> 33) as usize % (i + 1);
             order.swap(i, j);
         }
-        Self { order, pos: 0, show_back: false, again: Vec::new(), known: Vec::new() }
+        Self {
+            order,
+            pos: 0,
+            show_back: false,
+            again: Vec::new(),
+            known: Vec::new(),
+        }
     }
 }
 
-fn default_theme() -> String { "dark".into() }
-fn default_font_scale() -> f32 { 1.0 }
+fn default_theme() -> String {
+    "dark".into()
+}
+fn default_font_scale() -> f32 {
+    1.0
+}
 
 fn chrono_like_date() -> String {
     let secs = std::time::SystemTime::now()
@@ -304,21 +319,36 @@ fn chrono_like_date() -> String {
 impl AppState {
     /// Экспорт лабы недели: ~/re50-lab/week_<id>/TASK.md с лекциями, шагами, PSet, чекпоинтом.
     pub fn export_week_lab(&mut self, week_id: &str) -> Option<String> {
-        let w = self.curriculum.weeks.iter().find(|w| w.id == week_id)?.clone();
+        let w = self
+            .curriculum
+            .weeks
+            .iter()
+            .find(|w| w.id == week_id)?
+            .clone();
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-        let dir = std::path::PathBuf::from(home).join("re50-lab").join(format!("week_{}", w.id));
+        let dir = std::path::PathBuf::from(home)
+            .join("re50-lab")
+            .join(format!("week_{}", w.id));
         std::fs::create_dir_all(&dir).ok()?;
         let mut md = format!("# {} — {}\n\n", w.label(), w.title);
         md.push_str("## Лекции\n");
-        for l in &w.lectures { md.push_str(&format!("- {l}\n")); }
+        for l in &w.lectures {
+            md.push_str(&format!("- {l}\n"));
+        }
         if let Some(lab) = &w.lab {
             md.push_str(&format!("\n## {} \n", lab.title));
-            for (i, s) in lab.steps.iter().enumerate() { md.push_str(&format!("{}. {s}\n", i + 1)); }
+            for (i, s) in lab.steps.iter().enumerate() {
+                md.push_str(&format!("{}. {s}\n", i + 1));
+            }
         }
         md.push_str("\n## Problem Set\n");
-        for p in &w.psets { md.push_str(&format!("- {p}\n")); }
+        for p in &w.psets {
+            md.push_str(&format!("- {p}\n"));
+        }
         md.push_str("\n## Чекпоинт (самопроверка)\n");
-        for c in &w.checkpoint { md.push_str(&format!("- [ ] {c}\n")); }
+        for c in &w.checkpoint {
+            md.push_str(&format!("- [ ] {c}\n"));
+        }
         if let Some(case) = &w.case {
             md.push_str(&format!("\n## Проблема недели\n{case}\n"));
         }
@@ -340,8 +370,10 @@ impl AppState {
     pub fn import_profile_file(&mut self) -> Result<String, String> {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
         let path = std::path::PathBuf::from(home).join("re50-profile.json");
-        let data = std::fs::read_to_string(&path).map_err(|e| format!("Нет файла {path:?}: {e}"))?;
-        let p: Progress = serde_json::from_str(&data).map_err(|e| format!("Повреждённый JSON: {e}"))?;
+        let data =
+            std::fs::read_to_string(&path).map_err(|e| format!("Нет файла {path:?}: {e}"))?;
+        let p: Progress =
+            serde_json::from_str(&data).map_err(|e| format!("Повреждённый JSON: {e}"))?;
         self.progress = p;
         self.save();
         Ok(format!("Профиль импортирован из {path:?}"))
@@ -353,17 +385,32 @@ impl AppState {
         let path = std::path::PathBuf::from(home).join("re50-journal.md");
         let mut md = String::from("# RE-50 — Журнал обучения\n\n");
         md.push_str(&format!("Экспортирован: {}\n\n", chrono_like_date()));
-        md.push_str(&format!("XP: {} | Недель закрыто: {}\n\n", self.progress.xp, self.progress.weeks_done.len()));
+        md.push_str(&format!(
+            "XP: {} | Недель закрыто: {}\n\n",
+            self.progress.xp,
+            self.progress.weeks_done.len()
+        ));
         md.push_str("## Журнал\n\n");
         md.push_str(&self.progress.journal);
         md.push_str("\n\n## Гипотезы (ставки)\n\n");
         for (id, bet) in &self.progress.challenge_bets {
-            let ok = self.progress.bet_results.get(id).map(|b| if *b { "✔" } else { "✘" }).unwrap_or("⏳");
+            let ok = self
+                .progress
+                .bet_results
+                .get(id)
+                .map(|b| if *b { "✔" } else { "✘" })
+                .unwrap_or("⏳");
             md.push_str(&format!("- {ok} **{id}**: {bet}\n"));
         }
         md.push_str("\n## Тикеты (рабочие сессии)\n\n");
         for (id, dur, ok, comp) in &self.work.history {
-            md.push_str(&format!("- {} {} — {} сек, отчёт {}%\n", if *ok { "✔" } else { "⚠" }, id, dur, comp));
+            md.push_str(&format!(
+                "- {} {} — {} сек, отчёт {}%\n",
+                if *ok { "✔" } else { "⚠" },
+                id,
+                dur,
+                comp
+            ));
         }
         std::fs::write(&path, md).map_err(|e| e.to_string())?;
         Ok(path.display().to_string())
@@ -373,7 +420,9 @@ impl AppState {
     /// Возвращает (заголовок результата, тип, week_id для перехода)
     pub fn search_course(&self, q: &str) -> Vec<(String, String, String)> {
         let q = q.trim().to_lowercase();
-        if q.len() < 2 { return vec![]; }
+        if q.len() < 2 {
+            return vec![];
+        }
         let mut out = Vec::new();
         for w in &self.curriculum.weeks {
             let hay = format!("{} {}", w.title, w.lectures.join(" ")).to_lowercase();
@@ -383,28 +432,54 @@ impl AppState {
             if let Some(lab) = &w.lab {
                 let hay = format!("{} {}", lab.title, lab.steps.join(" ")).to_lowercase();
                 if hay.contains(&q) {
-                    out.push((format!("🧪 {} (лаба)", lab.title), "week".into(), w.id.clone()));
+                    out.push((
+                        format!("🧪 {} (лаба)", lab.title),
+                        "week".into(),
+                        w.id.clone(),
+                    ));
                 }
             }
             for ps in &w.psets {
                 if ps.to_lowercase().contains(&q) {
-                    out.push((format!("✏️ {}", ps.chars().take(60).collect::<String>()), "week".into(), w.id.clone()));
+                    out.push((
+                        format!("✏️ {}", ps.chars().take(60).collect::<String>()),
+                        "week".into(),
+                        w.id.clone(),
+                    ));
                 }
             }
         }
         for quiz in &self.curriculum.quizzes {
             if quiz.question.to_lowercase().contains(&q) {
-                out.push((format!("❓ {}", quiz.question.chars().take(60).collect::<String>()), "quiz".into(), quiz._week.clone()));
+                out.push((
+                    format!("❓ {}", quiz.question.chars().take(60).collect::<String>()),
+                    "quiz".into(),
+                    quiz._week.clone(),
+                ));
             }
         }
         for ch in &self.curriculum.challenges {
-            if format!("{} {}", ch.title, ch.desc).to_lowercase().contains(&q) {
-                out.push((format!("🚩 {} ({})", ch.title, ch.id), "challenge".into(), String::new()));
+            if format!("{} {}", ch.title, ch.desc)
+                .to_lowercase()
+                .contains(&q)
+            {
+                out.push((
+                    format!("🚩 {} ({})", ch.title, ch.id),
+                    "challenge".into(),
+                    String::new(),
+                ));
             }
         }
         for r in &self.curriculum.resources {
-            if format!("{} {}", r.name, r.category).to_lowercase().contains(&q) {
-                out.push((format!("🔗 {} [{}]", r.name, r.category), "resource".into(), String::new()));
+            if format!("{} {}", r.name, r.category)
+                .to_lowercase()
+                .contains(&q)
+            {
+                out.push((
+                    format!("🔗 {} [{}]", r.name, r.category),
+                    "resource".into(),
+                    String::new(),
+                ));
             }
         }
         out.truncate(30);
@@ -422,14 +497,21 @@ impl AppState {
             .collect();
         if candidates.is_empty() {
             // всё решено — берём любой (повторная тренировка)
-            candidates = self.curriculum.challenges.iter().map(|ch| ch.id.clone()).collect();
+            candidates = self
+                .curriculum
+                .challenges
+                .iter()
+                .map(|ch| ch.id.clone())
+                .collect();
         }
         let seed = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos() as u64)
             .unwrap_or(1);
         let mut s = seed | 1;
-        s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        s = s
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let idx = (s >> 33) as usize % candidates.len();
         let id = candidates[idx].clone();
         self.work = WorkSession {
@@ -455,8 +537,12 @@ impl AppState {
         let hypotheses = self.work.hypotheses.len();
         let id = self.work.challenge_id.clone();
         let solved = self.progress.challenges_solved.contains(&id);
-        self.progress.challenge_bets.insert(format!("work:{}", id), format!("гипотез: {hypotheses}"));
-        self.work.history.push((id.clone(), dur, !method_err, completeness));
+        self.progress
+            .challenge_bets
+            .insert(format!("work:{}", id), format!("гипотез: {hypotheses}"));
+        self.work
+            .history
+            .push((id.clone(), dur, !method_err, completeness));
         let mut msg = format!("Тикет {id} закрыт за {dur} сек. Полнота отчёта: {completeness}%.");
         if method_err {
             msg.push_str(" ⚠ Нарушение методологии — см. замечание.");
@@ -486,20 +572,20 @@ impl AppState {
             .curriculum
             .quizzes
             .iter()
-            .filter(|q| {
-                self.progress
-                    .quiz_correct
-                    .contains(&q.id)
-            })
+            .filter(|q| self.progress.quiz_correct.contains(&q.id))
             .collect();
         // Если мало пройденных — добираем случайными из всех
-        let mut pool: Vec<crate::curriculum::Quiz> =
-            if done.len() >= 10 { done.into_iter().cloned().collect() }
-            else { self.curriculum.quizzes.clone() };
+        let mut pool: Vec<crate::curriculum::Quiz> = if done.len() >= 10 {
+            done.into_iter().cloned().collect()
+        } else {
+            self.curriculum.quizzes.clone()
+        };
         // shuffle LCG with seed
         let mut s = seed | 1;
         for i in (1..pool.len()).rev() {
-            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            s = s
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let j = (s >> 33) as usize % (i + 1);
             pool.swap(i, j);
         }
@@ -582,7 +668,10 @@ impl AppState {
     pub fn load_or_default() -> Self {
         let curriculum = Curriculum::load();
         let progress = Self::read_progress_file().unwrap_or_default();
-        let drill = DrillState { solved: progress.drills_solved.clone(), ..DrillState::default() };
+        let drill = DrillState {
+            solved: progress.drills_solved.clone(),
+            ..DrillState::default()
+        };
         Self {
             curriculum,
             progress,
@@ -654,7 +743,11 @@ impl AppState {
         let day = now / 86400;
         // учёт времени: дельта с прошлого сохранения, ограничена (anti-висение)
         let delta = self.progress.last_tick;
-        let delta = if delta > 0 && now > delta { (now - delta).min(3600) } else { 0 };
+        let delta = if delta > 0 && now > delta {
+            (now - delta).min(3600)
+        } else {
+            0
+        };
         self.progress.pending_seconds += delta;
         self.progress.last_tick = now;
         if self.progress.pending_seconds >= 30 {
@@ -667,7 +760,11 @@ impl AppState {
             self.progress.streak = (day, 1);
         } else if day > self.progress.streak.0 {
             let delta = day - self.progress.streak.0;
-            self.progress.streak.1 = if delta == 1 { self.progress.streak.1 + 1 } else { 1 };
+            self.progress.streak.1 = if delta == 1 {
+                self.progress.streak.1 + 1
+            } else {
+                1
+            };
             self.progress.streak.0 = day;
         }
         // history: one point per day
@@ -676,7 +773,9 @@ impl AppState {
             Some((d, xp)) if *d == day => *xp = self.progress.xp,
             _ => {
                 h.push((day, self.progress.xp));
-                if h.len() > 400 { h.remove(0); }
+                if h.len() > 400 {
+                    h.remove(0);
+                }
             }
         }
         if let Some(path) = Self::progress_path() {
@@ -684,11 +783,17 @@ impl AppState {
                 let _ = std::fs::create_dir_all(path.parent().unwrap());
                 // бэкап: ротация 5 копий — защита от порчи/случайной потери прогресса
                 let dir = path.parent().unwrap().to_path_buf();
-                let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                let name = path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
                 for i in (1..5).rev() {
                     let from = dir.join(format!("{name}.bak{i}"));
                     let to = dir.join(format!("{name}.bak{}", i + 1));
-                    if from.exists() { let _ = std::fs::rename(&from, &to); }
+                    if from.exists() {
+                        let _ = std::fs::rename(&from, &to);
+                    }
                 }
                 if path.exists() {
                     let _ = std::fs::copy(&path, dir.join(format!("{name}.bak1")));
@@ -747,7 +852,9 @@ impl AppState {
 
     pub fn complete_pset_with_explain(&mut self, key: &str, explain: String) {
         if !explain.trim().is_empty() {
-            self.progress.pset_explains.insert(key.to_string(), explain.trim().to_string());
+            self.progress
+                .pset_explains
+                .insert(key.to_string(), explain.trim().to_string());
             if !self.progress.psets_done.contains(key) {
                 self.progress.psets_done.insert(key.to_string());
                 self.add_xp(40);
@@ -761,8 +868,7 @@ impl AppState {
     /// Export challenge binaries (ELF + EXE) to ~/re50-lab/<id>/
     pub fn export_challenge(&self, id: &str) -> Option<String> {
         let ch = self.curriculum.challenges.iter().find(|c| c.id == id)?;
-        let home = std::env::var_os("HOME")
-            .or_else(|| std::env::var_os("USERPROFILE"))?; // Windows
+        let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?; // Windows
         let dir = std::path::PathBuf::from(home).join("re50-lab").join(id);
         std::fs::create_dir_all(&dir).ok()?;
         let elf_bytes = include_bytes_with_fallback(&format!("assets/challenges/{}", id));
@@ -790,7 +896,10 @@ impl AppState {
     }
 
     pub fn submit_flag(&mut self, id: &str, flag: &str) -> bool {
-        let clean = flag.trim().trim_start_matches("FLAG{").trim_end_matches('}');
+        let clean = flag
+            .trim()
+            .trim_start_matches("FLAG{")
+            .trim_end_matches('}');
         let expected: String = self
             .curriculum
             .challenges
@@ -896,11 +1005,7 @@ impl AppState {
     }
 
     pub fn psets_total(&self) -> usize {
-        self.curriculum
-            .weeks
-            .iter()
-            .map(|w| w.psets.len())
-            .sum()
+        self.curriculum.weeks.iter().map(|w| w.psets.len()).sum()
     }
 
     pub fn psets_done_count(&self) -> usize {
@@ -986,7 +1091,11 @@ impl AppState {
         }
 
         // senior-track achievements
-        if pset_done_prefix("w25:") && pset_done_prefix("w26:") && pset_done_prefix("w27:") && !has("elf_master") {
+        if pset_done_prefix("w25:")
+            && pset_done_prefix("w26:")
+            && pset_done_prefix("w27:")
+            && !has("elf_master")
+        {
             unlock.push("elf_master");
         }
         if pset_done_prefix("w28:") && pset_done_prefix("w29:") && !has("cpp_master") {
@@ -1036,18 +1145,25 @@ impl eframe::App for AppState {
 fn dirs_next() -> Option<std::path::PathBuf> {
     #[cfg(target_os = "windows")]
     {
-        std::env::var_os("APPDATA").map(|d| std::path::PathBuf::from(d).join("re50").join("progress.json"))
+        std::env::var_os("APPDATA").map(|d| {
+            std::path::PathBuf::from(d)
+                .join("re50")
+                .join("progress.json")
+        })
     }
     #[cfg(target_os = "macos")]
     {
-        std::env::var_os("HOME")
-            .map(|d| std::path::PathBuf::from(d).join("Library/Application Support/re50/progress.json"))
+        std::env::var_os("HOME").map(|d| {
+            std::path::PathBuf::from(d).join("Library/Application Support/re50/progress.json")
+        })
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
         std::env::var_os("XDG_CONFIG_HOME")
             .map(std::path::PathBuf::from)
-            .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config")))
+            .or_else(|| {
+                std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config"))
+            })
             .map(|d| d.join("re50").join("progress.json"))
     }
 }
@@ -1061,4 +1177,3 @@ fn include_bytes_with_fallback(rel: &str) -> Option<&'static [u8]> {
         .find(|(name, _)| *name == rel)
         .map(|(_, bytes)| *bytes)
 }
-

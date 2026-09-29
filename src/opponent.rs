@@ -99,22 +99,29 @@ pub const QUESTIONS: &[OpponentQuestion] = &[
 
 /// Оценка ответа: эвристика — ищем ключевые слова и ловим пустые фразы.
 pub struct Verdict {
-    pub score: u8,       // 0..100
+    pub score: u8, // 0..100
     pub critique: String,
 }
 
 pub fn evaluate(q: &OpponentQuestion, answer: &str) -> Verdict {
     let a = answer.to_lowercase();
     if a.trim().len() < 20 {
-        return Verdict { score: 0, critique: "Слишком коротко. Оппонент ждёт обоснование, а не телеграфу.".into() };
+        return Verdict {
+            score: 0,
+            critique: "Слишком коротко. Оппонент ждёт обоснование, а не телеграфу.".into(),
+        };
     }
     let mut hits = 0;
     for k in q.expected {
-        if a.contains(k) { hits += 1; }
+        if a.contains(k) {
+            hits += 1;
+        }
     }
     let mut empty = 0;
     for m in q.empty_markers {
-        if a.contains(m) { empty += 1; }
+        if a.contains(m) {
+            empty += 1;
+        }
     }
     let coverage = hits as f32 / q.expected.len() as f32;
     let base = (coverage * 90.0) as u8;
@@ -149,17 +156,26 @@ pub fn ollama_ask(model: &str, topic: &str, student_answer: &str) -> Result<Stri
     );
     let mut stream = TcpStream::connect("127.0.0.1:11434")
         .map_err(|_| "Ollama не запущен (127.0.0.1:11434). Установите с ollama.com и выполните: ollama pull llama3.1".to_string())?;
-    stream.set_read_timeout(Some(std::time::Duration::from_secs(120))).ok();
+    stream
+        .set_read_timeout(Some(std::time::Duration::from_secs(120)))
+        .ok();
     let req = format!(
         "POST /api/generate HTTP/1.1\r\nHost: 127.0.0.1:11434\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
         body.len(), body
     );
-    stream.write_all(req.as_bytes()).map_err(|e| e.to_string())?;
+    stream
+        .write_all(req.as_bytes())
+        .map_err(|e| e.to_string())?;
     let mut resp = String::new();
-    stream.read_to_string(&mut resp).map_err(|e| e.to_string())?;
+    stream
+        .read_to_string(&mut resp)
+        .map_err(|e| e.to_string())?;
     // тело после \r\n\r\n
     let json_part = resp.split("\r\n\r\n").nth(1).unwrap_or("");
     let v: serde_json::Value = serde_json::from_str(json_part)
         .map_err(|_| format!("Неожиданный ответ Ollama: {}", &resp[..resp.len().min(200)]))?;
-    Ok(v["response"].as_str().unwrap_or("(пустой ответ)").to_string())
+    Ok(v["response"]
+        .as_str()
+        .unwrap_or("(пустой ответ)")
+        .to_string())
 }

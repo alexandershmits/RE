@@ -72,7 +72,6 @@ pub struct Resource {
     pub category: String,
 }
 
-
 #[derive(Debug, Clone, Deserialize)]
 pub struct Flashcard {
     pub id: String,
@@ -87,7 +86,6 @@ pub struct InterviewQuestion {
     pub a: String,
     pub cat: String,
 }
-
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PlacementQ {
@@ -214,5 +212,4 @@ impl Curriculum {
             .map(|m| format!("{} {}", m.icon, m.name))
             .unwrap_or_else(|| "—".to_string())
     }
-
 }
