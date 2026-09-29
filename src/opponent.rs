@@ -45,25 +45,25 @@ pub const QUESTIONS: &[OpponentQuestion] = &[
     OpponentQuestion {
         topic: "Упаковка",
         question: "Как найти OEP упакованного бинаря? Опиши СВОЙ порядок действий в x64dbg, а не из книги.",
-        expected: &["popad", "push", "jmp", "стек", ".section", "точку вход", "бреяк", "спуск"],
+        expected: &["popad", "push", "jmp", "стек", ".section", "точку вход", "брейк", "бряк", "спуск"],
         empty_markers: &["нажать", "программа сама"],
     },
     OpponentQuestion {
         topic: "Упаковка",
         question: "Почему после дампа бинарь не запускается? Что именно чинит Scylla и почему IAT ломается?",
-        expected: &["iat", "адрес", "импорт", "пересобр", "таблиц", "va", "rva"],
+        expected: &["iat", "адрес", "импорт", "пересобр", "таблиц", "виртуальн", "rva"],
         empty_markers: &["не знаю", "магия"],
     },
     OpponentQuestion {
         topic: "Хеши",
         question: "Ты видишь цикл h = h*31 + c. Почему это почти наверняка проверка пароля и как её обойти БЕЗ брутфорса?",
         expected: &["обратн", "инверт", "модул", "подбор", "инверс", "реш", "уравнен"],
-        empty_markers: &["брутфорс", "сложно"],
+        empty_markers: &["просто брутфорс", "сложно сказать"],
     },
     OpponentQuestion {
         topic: "Отладка",
         question: "Что такое анти-отладка через IsDebuggerPresent и как её нейтрализовать? Назови минимум 2 способа.",
-        expected: &["пеб", "peb", "патч", "флаг", "платформ", "syscall", "хук", "обход", "zec", "ntp"],
+        expected: &["пеб", "peb", "патч", "флаг", "платформ", "syscall", "хук", "обход", "ntquery", "ntset"],
         empty_markers: &["удалить", "не запускать"],
     },
     OpponentQuestion {
@@ -76,13 +76,13 @@ pub const QUESTIONS: &[OpponentQuestion] = &[
         topic: "Методология",
         question: "Твой анализ даёт вывод X, но динамический прогон противоречит. Чьим выводам верить и почему?",
         expected: &["динамик", "провер", "гипотез", "эксперимент", "лог", "трасс"],
-        empty_markers: &["статик", "декомпил"],
+        empty_markers: &["верить статике", "декомпилятор не врёт"],
     },
     OpponentQuestion {
         topic: "Методология",
         question: "Ты нашёл строку с «паролем» в бинаре. Почему это может быть ловушка? Как проверить?",
         expected: &["фейк", "decoy", "ловушк", "не использ", "провер", "сравнен", "реальн", "ветк"],
-        empty_markers: &["ввести", "повезёт"],
+        empty_markers: &["просто ввести", "повезёт"],
     },
     OpponentQuestion {
         topic: "AI-реверс",
@@ -312,6 +312,30 @@ mod tests {
             }
         }
         assert_eq!(QUESTIONS.len(), 14);
+    }
+
+    #[test]
+    fn keywords_are_long_enough_not_to_match_inside_unrelated_words() {
+        for q in QUESTIONS {
+            for k in q.expected {
+                assert!(
+                    k.chars().count() >= 3 || ["sf", "of", "cf"].contains(k),
+                    "{}: «{k}» встретится в любом слове",
+                    q.question
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_correct_answer_is_not_penalised_for_naming_the_topic() {
+        // раньше «брутфорс» в маркерах пустого ответа отнимал 25 баллов у верного «без брутфорса: инверсия»
+        let hash = QUESTIONS
+            .iter()
+            .find(|q| q.question.contains("h*31"))
+            .unwrap();
+        let answer = "Без брутфорса: инвертирую шаги хеша по модулю 2^32 и решаю уравнение для каждого символа, поэтому подбор не нужен";
+        assert!(evaluate(hash, answer).score >= 80);
     }
 
     #[test]

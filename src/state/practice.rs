@@ -65,11 +65,18 @@ impl AppState {
         self.mark_dirty();
     }
 
-    /// Три модуля с наибольшим числом невыправленных ошибок (в квизе или на re-exam), исправленных верным ответом — не считаются.
+    /// Три модуля с наибольшим числом невыправленных ошибок (в квизе или на re-exam). Ошибка, исправленная
+    /// верным ответом, не считается; новая ошибка в ранее решённом вопросе — считается.
     pub fn weak_topics(&self) -> Vec<(String, usize)> {
         let mut wrong: BTreeMap<u8, usize> = BTreeMap::new();
         for q in &self.curriculum.quizzes {
-            if self.progress.mistakes.contains(&q.id) && !self.progress.quiz_correct.contains(&q.id)
+            let last_answer_wrong = self
+                .progress
+                .quiz_answers
+                .get(&q.id)
+                .is_some_and(|&a| a != q.correct);
+            if self.progress.mistakes.contains(&q.id)
+                && (!self.progress.quiz_correct.contains(&q.id) || last_answer_wrong)
             {
                 *wrong.entry(q.module).or_default() += 1;
             }
@@ -160,6 +167,10 @@ impl AppState {
     }
 
     pub fn review_card(&mut self, id: &str, known: bool, today: u64) {
+        // «Повторить всё равно» не двигает расписание: без этого три «Знаю» за день выпускали ошибку из колоды
+        if known && self.card_due_day(id) > today {
+            return;
+        }
         let level = self.card_level(id);
         let new_level = if known {
             level.saturating_add(1).min(5)
@@ -482,6 +493,52 @@ mod tests {
             "после третьего успеха ошибка «выучена»"
         );
         assert!(app.deck().iter().all(|c| c.id != id));
+    }
+
+    #[test]
+    fn extra_practice_does_not_advance_the_schedule() {
+        let mut app = AppState::in_memory();
+        let q = quiz(&app, 0);
+        app.submit_quiz_answer(&q, wrong_answer(&q));
+        let id = format!("quiz:{}", q.id);
+        for _ in 0..5 {
+            app.review_card(&id, true, 100); // «Повторить всё равно»: срок наступил только в первый раз
+        }
+        assert_eq!((app.card_level(&id), app.card_due_day(&id)), (1, 101));
+        assert!(
+            app.progress.mistakes.contains(&q.id),
+            "пять «Знаю» за один день не выпускают ошибку"
+        );
+        app.review_card(&id, true, 101);
+        assert_eq!(
+            app.card_level(&id),
+            2,
+            "когда срок пришёл, расписание идёт дальше"
+        );
+    }
+
+    #[test]
+    fn a_new_mistake_in_a_solved_quiz_is_a_weak_topic() {
+        let mut app = AppState::in_memory();
+        let q = quiz(&app, 0);
+        let weak = |app: &AppState| app.weak_topics().iter().map(|(_, n)| n).sum::<usize>();
+        app.submit_quiz_answer(&q, q.correct);
+        assert_eq!(weak(&app), 0);
+        app.submit_quiz_answer(&q, wrong_answer(&q));
+        assert_eq!(
+            weak(&app),
+            1,
+            "решённый ранее вопрос, в котором ошиблись снова"
+        );
+        app.submit_quiz_answer(&q, q.correct);
+        assert_eq!(weak(&app), 0, "верный ответ исправляет ошибку");
+    }
+
+    #[test]
+    fn trainer_hint_matches_the_card_schedule() {
+        // текст подсказки в тренажёре: «сегодня, затем через 1 и 3 дня; после третьего верного повтора уйдёт»
+        assert_eq!(CARD_INTERVAL_DAYS[1..=2], [1, 3]);
+        assert_eq!(MISTAKE_GRADUATION_LEVEL, 3);
     }
 
     #[test]

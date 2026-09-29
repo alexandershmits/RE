@@ -1,6 +1,10 @@
 //! Минимальная разметка текста курса: `**жирный**`, `*курсив*`, `` `код` `` и `[ссылка](https://…)`.
 
-use eframe::egui::{self, RichText};
+use eframe::egui::{
+    self,
+    text::{LayoutJob, TextFormat},
+    Color32, RichText, Stroke,
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Span<'a> {
@@ -22,13 +26,21 @@ pub fn parse(input: &str) -> Vec<Span<'_>> {
                 .filter(|&n| n > 0)
                 .map(|n| (Span::Bold(&body[..n]), 2 + n + 2))
         } else if let Some(body) = rest.strip_prefix('*') {
-            // курсив: открывающая звёздочка не внутри слова, снаружи от пробелов
+            // курсив: открывающая `*` не внутри слова, закрывающая не перед буквой и не рядом с другой `*`;
+            // так указатели в C (`char *p`, `(*p)`) остаются текстом
             let opens = input[..i]
                 .chars()
                 .next_back()
                 .is_none_or(|c| !c.is_alphanumeric());
             body.find('*')
-                .filter(|&n| opens && n > 0 && !body.starts_with(' ') && !body[..n].ends_with(' '))
+                .filter(|&n| {
+                    let after = body[n + 1..].chars().next();
+                    opens
+                        && n > 0
+                        && !body.starts_with(char::is_whitespace)
+                        && !body[..n].ends_with(char::is_whitespace)
+                        && after.is_none_or(|c| !c.is_alphanumeric() && c != '*')
+                })
                 .map(|n| (Span::Italic(&body[..n]), 1 + n + 1))
         } else if let Some(body) = rest.strip_prefix('`') {
             body.find('`')
@@ -64,6 +76,71 @@ pub fn parse(input: &str) -> Vec<Span<'_>> {
         spans.push(Span::Text(&input[text_start..]));
     }
     spans
+}
+
+/// Текст без знаков разметки (для заголовков и списков, где формат не нужен).
+pub fn strip_marks(input: &str) -> String {
+    parse(input)
+        .into_iter()
+        .map(|span| match span {
+            Span::Text(t) | Span::Bold(t) | Span::Italic(t) | Span::Code(t) => t,
+            Span::Link { label, .. } => label,
+        })
+        .collect()
+}
+
+/// Обычный формат текста виджета: цвет подставит сам виджет.
+pub fn format_for(ui: &egui::Ui) -> TextFormat {
+    TextFormat {
+        font_id: egui::TextStyle::Body.resolve(ui.style()),
+        color: Color32::PLACEHOLDER,
+        ..TextFormat::default()
+    }
+}
+
+/// Та же разметка для виджетов, которые принимают только текст (флажки, метки). Ссылки в них не
+/// кликабельны: рисуются подчёркнутыми.
+pub fn job(ui: &egui::Ui, input: &str, base: TextFormat) -> LayoutJob {
+    let visuals = &ui.style().visuals;
+    let mono = egui::TextStyle::Monospace.resolve(ui.style());
+    let mut job = LayoutJob::default();
+    for span in parse(input) {
+        let (text, format) = match span {
+            Span::Text(t) => (t, base.clone()),
+            Span::Bold(t) => (
+                t,
+                TextFormat {
+                    color: visuals.strong_text_color(),
+                    ..base.clone()
+                },
+            ),
+            Span::Italic(t) => (
+                t,
+                TextFormat {
+                    italics: true,
+                    ..base.clone()
+                },
+            ),
+            Span::Code(t) => (
+                t,
+                TextFormat {
+                    font_id: mono.clone(),
+                    background: visuals.code_bg_color,
+                    ..base.clone()
+                },
+            ),
+            Span::Link { label, .. } => (
+                label,
+                TextFormat {
+                    color: visuals.hyperlink_color,
+                    underline: Stroke::new(1.0, visuals.hyperlink_color),
+                    ..base.clone()
+                },
+            ),
+        };
+        job.append(text, 0.0, format);
+    }
+    job
 }
 
 /// Строка с разметкой; ссылки открываются в браузере.
@@ -133,6 +210,40 @@ mod tests {
     }
 
     #[test]
+    fn c_pointers_are_not_emphasis() {
+        for s in [
+            "char *p = data + 5; while (*p) p++;",
+            "читаю *p** и **p[i]** бегло",
+            "int **argv, *p;",
+        ] {
+            let spans = parse(s);
+            assert!(
+                spans.iter().all(|sp| !matches!(sp, Span::Italic(_))),
+                "{s}: {spans:?}"
+            );
+        }
+        assert_eq!(
+            parse("(*важно*) и *ещё*."),
+            vec![
+                Span::Text("("),
+                Span::Italic("важно"),
+                Span::Text(") и "),
+                Span::Italic("ещё"),
+                Span::Text("."),
+            ]
+        );
+    }
+
+    #[test]
+    fn strip_marks_drops_the_marks_but_keeps_the_words() {
+        assert_eq!(
+            strip_marks("**жирный**, *курсив*, `код` и [ссылка](https://x.io)"),
+            "жирный, курсив, код и ссылка"
+        );
+        assert_eq!(strip_marks("2*3*4"), "2*3*4");
+    }
+
+    #[test]
     fn broken_markup_stays_text() {
         for s in [
             "**без конца",
@@ -177,7 +288,15 @@ mod tests {
         let c = crate::curriculum::Curriculum::load();
         let mut with_markup = 0;
         for w in &c.weeks {
-            for line in w.lectures.iter().chain(w.case.iter()) {
+            let lab_steps = w.lab.iter().flat_map(|l| l.steps.iter());
+            let lines = w
+                .lectures
+                .iter()
+                .chain(w.case.iter())
+                .chain(lab_steps)
+                .chain(w.psets.iter())
+                .chain(w.checkpoint.iter());
+            for line in lines {
                 let spans = parse(line);
                 assert_eq!(
                     to_source(&spans),
@@ -185,6 +304,16 @@ mod tests {
                     "{}: разбор потерял или исказил текст",
                     w.id
                 );
+                // курсив в курсе — это слова; всё с кодом внутри — случайно съеденные звёздочки
+                for span in &spans {
+                    if let Span::Italic(t) = span {
+                        assert!(
+                            !t.contains(['=', ';', '(', ')', '[', ']', '{', '}', '<', '>', '+']),
+                            "{}: курсив съел код: *{t}* (оберните код в обратные кавычки)",
+                            w.id
+                        );
+                    }
+                }
                 with_markup += spans.iter().filter(|s| !matches!(s, Span::Text(_))).count();
             }
         }

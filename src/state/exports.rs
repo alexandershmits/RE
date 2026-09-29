@@ -104,8 +104,23 @@ impl AppState {
 
     /// Заменяет прогресс импортированным. Перед заменой текущий сохраняется в резервную копию.
     pub fn import_progress(&mut self, json: &str) -> Result<(), String> {
-        let mut imported: Progress =
+        let value: serde_json::Value =
             serde_json::from_str(json).map_err(|e| format!("некорректный JSON: {e}"))?;
+        // Progress целиком заполняется значениями по умолчанию, поэтому `{}` или чужой JSON «импортировались»
+        // бы как пустой профиль и стёрли прогресс
+        let known = serde_json::to_value(Progress::default()).unwrap_or_default();
+        let looks_like_progress = value.as_object().is_some_and(|o| {
+            o.keys()
+                .any(|k| known.as_object().is_some_and(|d| d.contains_key(k)))
+        });
+        if !looks_like_progress {
+            return Err(
+                "это не прогресс RE-50: в JSON нет ни одного известного поля (нужен экспорт из приложения)"
+                    .into(),
+            );
+        }
+        let mut imported: Progress =
+            serde_json::from_value(value).map_err(|e| format!("некорректный прогресс: {e}"))?;
         if imported.schema > SCHEMA_VERSION {
             return Err(format!(
                 "профиль создан более новой версией RE-50 (схема {}, эта версия понимает {SCHEMA_VERSION}): обновите приложение",
@@ -261,6 +276,23 @@ mod tests {
             .unwrap_err()
             .contains("некорректный"));
         assert_eq!(a.progress.xp, 9);
+    }
+
+    #[test]
+    fn json_that_is_not_progress_is_refused() {
+        let mut a = AppState::in_memory();
+        a.progress.xp = 9;
+        a.progress.journal = "заметки".into();
+        for junk in [
+            "{}",
+            "[]",
+            "42",
+            r#"{"name": "package", "version": "1.0.0"}"#,
+        ] {
+            let err = a.import_progress(junk).unwrap_err();
+            assert!(err.contains("не прогресс"), "{junk}: {err}");
+        }
+        assert_eq!((a.progress.xp, a.progress.journal.as_str()), (9, "заметки"));
     }
 
     #[test]

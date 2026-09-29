@@ -90,11 +90,11 @@ impl PeTask {
         TASKS.get_or_init(|| vec![
             PeTask {
                 title: "1. DOS header".into(),
-                bytes: "00000000  4D 5A 90 00 03 00 00 00  04 00 00 00 FF FF 00 00\n00000010  B8 00 00 00 00 00 00 00  40 00 00 00 00 00 00 00\n00000020  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00\n00000030  00 00 00 00 00 00 00 00  00 00 00 00 F0 00 00 00\n0000003C  E8 04 00 00  <- e_lfanew".into(),
+                bytes: "00000000  4D 5A 90 00 03 00 00 00  04 00 00 00 FF FF 00 00\n00000010  B8 00 00 00 00 00 00 00  40 00 00 00 00 00 00 00\n00000020  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00\n00000030  00 00 00 00 00 00 00 00  00 00 00 00 E8 00 00 00\n0000003C  E8 00 00 00  <- e_lfanew".into(),
                 question: "Что здесь означает байтовая пара 4D 5A в начале файла?".to_string(),
                 answers: vec!["Магия 'MZ' — DOS-заголовок, признак PE".to_string(), "Размер секции .text".to_string(), "Адрес точки входа".to_string(), "Это повреждённый файл".to_string()],
                 correct: 0,
-                explain: "'MZ' = Mark Zbikowski, разработчик MS-DOS. Это сигнатура начала PE. e_lfanew (смещение 0x3C) = 0x4E8 — там лежит 'PE\\0\\0'.".into(),
+                explain: "'MZ' = Mark Zbikowski, разработчик MS-DOS. Это сигнатура начала PE. e_lfanew (смещение 0x3C) = 0xE8 — там лежит 'PE\\0\\0'.".into(),
             },
             PeTask {
                 title: "2. Number of Sections".into(),
@@ -298,6 +298,39 @@ mod tests {
 
     fn reg_answers(i: usize) -> Vec<(&'static str, u64)> {
         RegTask::all()[i].answers.clone()
+    }
+
+    #[test]
+    fn dos_header_points_at_the_pe_signature_shown_in_the_next_task() {
+        let tasks = PeTask::all();
+        let line = |text: &'static str, needle: &str| {
+            text.lines()
+                .find(|l| l.contains(needle))
+                .unwrap_or_default()
+        };
+        let hex = |l: &str, skip| -> Vec<u8> {
+            l.split_whitespace()
+                .skip(skip)
+                .take_while(|t| t.len() == 2 && t.chars().all(|c| c.is_ascii_hexdigit()))
+                .map(|t| u8::from_str_radix(t, 16).unwrap())
+                .collect()
+        };
+        let e_lfanew = hex(line(&tasks[0].bytes, "<- e_lfanew"), 1);
+        assert_eq!(e_lfanew.len(), 4);
+        let row_0x30 = hex(line(&tasks[0].bytes, "00000030"), 1);
+        assert_eq!(
+            row_0x30[12..],
+            e_lfanew[..],
+            "поле в дампе и подпись должны совпасть"
+        );
+        let value = u32::from_le_bytes(e_lfanew.try_into().unwrap());
+        let pe_offset =
+            u32::from_str_radix(tasks[1].bytes.split_whitespace().next().unwrap(), 16).unwrap();
+        assert_eq!(
+            value, pe_offset,
+            "e_lfanew должен указывать на «PE\\0\\0» из следующей задачи"
+        );
+        assert!(tasks[0].explain.contains(&format!("0x{value:X}")));
     }
 
     #[test]

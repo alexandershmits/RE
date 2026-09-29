@@ -13,10 +13,15 @@
 import hashlib
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
 import tempfile
+
+for stream in (sys.stdout, sys.stderr):  # кириллица в отчёте не должна ронять вывод в консоли Windows или при перенаправлении
+    if hasattr(stream, "reconfigure"):
+        stream.reconfigure(encoding="utf-8")
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 ASSETS = os.path.join(ROOT, "assets")
@@ -51,8 +56,12 @@ def main():
     rebuild = "--rebuild" in sys.argv[1:]
     curriculum = load(os.path.join(ASSETS, "curriculum.json"))
     solutions = load(os.path.join(ROOT, "tools", "challenge_solutions.json"))
-    can_run = sys.platform.startswith("linux")
+    # поставляемые ELF — x86-64: на ARM или не на Linux их не запустить
+    can_run = sys.platform.startswith("linux") and platform.machine().lower() in ("x86_64", "amd64")
     problems = []
+    if rebuild and not shutil.which("gcc"):
+        print("НАЙДЕНО ПРОБЛЕМ: 1\n - для --rebuild нужен gcc")
+        return 1
 
     for ch in curriculum["challenges"]:
         cid, flag = ch["id"], ch["flag"]
@@ -115,7 +124,12 @@ def main():
             print(" -", p)
         return 1
     mode = "хеши, поведение ELF" + (", пересборка из .c" if rebuild else "")
-    print(f"OK: {checked} челленджей проверено ({mode}{'' if can_run else '; запуск пропущен — не Linux'})")
+    notes = ""
+    if not can_run:
+        notes += "; запуск пропущен — нужен Linux x86-64"
+    if rebuild and not shutil.which("x86_64-w64-mingw32-gcc"):
+        notes += "; PE не пересобирался — нет x86_64-w64-mingw32-gcc"
+    print(f"OK: {checked} челленджей проверено ({mode}{notes})")
     return 0
 
 

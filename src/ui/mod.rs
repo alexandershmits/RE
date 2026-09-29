@@ -111,11 +111,8 @@ fn hotkeys(app: &mut AppState, ctx: &egui::Context) {
     app.search_focus |= search;
 }
 
+/// Переключение вкладки не трогает идущий квиз: закрывается он кнопкой «Завершить сессию».
 fn select_tab(app: &mut AppState, tab: Tab) {
-    // повторный клик по «Тренажёру» не должен сбрасывать идущую сессию
-    if tab == Tab::Trainer && app.tab != Tab::Trainer {
-        app.quiz = None;
-    }
     app.tab = tab;
 }
 
@@ -126,7 +123,11 @@ fn poll_background(app: &mut AppState, ctx: &egui::Context) {
         Some(JobState::Running) => ctx.request_repaint_after(Duration::from_millis(200)),
         Some(JobState::Done(report)) => {
             app.generator = None;
-            app.toast_for(report.message, ctx, 12.0);
+            if report.ok {
+                app.toast_for(report.message, ctx, 12.0);
+            } else {
+                app.warn_for(report.message, ctx, 12.0);
+            }
         }
         Some(JobState::Failed) => {
             app.generator = None;
@@ -142,8 +143,28 @@ fn poll_background(app: &mut AppState, ctx: &egui::Context) {
 
 /// Уведомление о восстановлении, ошибка сохранения и всплывающие сообщения.
 fn notices(app: &mut AppState, ctx: &egui::Context) {
-    if let Some(text) = app.startup_notice.take() {
-        app.toast_for(text, ctx, 12.0);
+    // Восстановление, карантин файла, «уже открыто в другом окне» — держим на экране, пока не закроют
+    let mut toast_top = 12.0;
+    if let Some(text) = app.startup_notice.clone() {
+        toast_top = 100.0;
+        let mut dismissed = false;
+        egui::Area::new(egui::Id::new("startup_notice"))
+            .anchor(egui::Align2::CENTER_TOP, [0.0, 12.0])
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                egui::Frame::popup(ui.style())
+                    .fill(soft(60, 44, 24))
+                    .stroke(egui::Stroke::new(1.0, warn()))
+                    .inner_margin(12.0)
+                    .show(ui, |ui| {
+                        ui.set_max_width(640.0);
+                        ui.colored_label(warn(), format!("⚠ {text}"));
+                        dismissed = ui.button("Понятно").clicked();
+                    });
+            });
+        if dismissed {
+            app.startup_notice = None;
+        }
     }
     if let Some(error) = app.save_error.clone() {
         egui::Area::new(egui::Id::new("save_error"))
@@ -165,9 +186,10 @@ fn notices(app: &mut AppState, ctx: &egui::Context) {
         app.toast = None;
         return;
     }
-    let failed = message.starts_with("Ошибка") || message.starts_with("Не удалось");
+    let failed =
+        app.toast_warning || message.starts_with("Ошибка") || message.starts_with("Не удалось");
     egui::Area::new(egui::Id::new("toast"))
-        .anchor(egui::Align2::CENTER_TOP, [0.0, 12.0])
+        .anchor(egui::Align2::CENTER_TOP, [0.0, toast_top])
         .order(egui::Order::Foreground)
         .show(ctx, |ui| {
             egui::Frame::popup(ui.style())
@@ -366,18 +388,19 @@ fn nav_panel(app: &mut AppState, root: &mut egui::Ui) {
         (Tab::Work, "💼", "Рабочая сессия".to_string()),
     ];
     egui::Panel::left("nav").exact_size(190.0).show(root, |ui| {
-        ui.add_space(8.0);
-        for (tab, icon, label) in items {
-            if ui
-                .selectable_label(app.tab == tab, format!("{icon}  {label}"))
-                .clicked()
-            {
-                select_tab(app, tab);
-            }
-        }
-        ui.separator();
-        ui.label(RichText::new("Правила курса:").weak());
+        // при крупном шрифте или низком окне меню длиннее экрана: без прокрутки последние вкладки недоступны
         ScrollArea::vertical().show(ui, |ui| {
+            ui.add_space(8.0);
+            for (tab, icon, label) in items {
+                if ui
+                    .selectable_label(app.tab == tab, format!("{icon}  {label}"))
+                    .clicked()
+                {
+                    select_tab(app, tab);
+                }
+            }
+            ui.separator();
+            ui.label(RichText::new("Правила курса:").weak());
             for rule in &app.curriculum.course.rules {
                 ui.label(RichText::new(format!("• {rule}")).size(11.0).weak());
             }
@@ -400,7 +423,7 @@ fn search_window(app: &mut AppState, ctx: &egui::Context) {
             }
             ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
                 for hit in &app.search_results {
-                    if ui.link(&hit.title).clicked() {
+                    if ui.link(markup::strip_marks(&hit.title)).clicked() {
                         jump = Some((hit.kind, hit.week_id.clone()));
                     }
                 }
@@ -431,4 +454,19 @@ fn search_window(app: &mut AppState, ctx: &egui::Context) {
 pub(crate) fn now_and_day() -> (u64, u64) {
     let now = util::unix_now();
     (now, util::local_day(now))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn leaving_the_trainer_and_coming_back_keeps_the_running_quiz() {
+        let mut app = AppState::in_memory();
+        assert!(app.start_quiz(None));
+        select_tab(&mut app, Tab::Trainer);
+        select_tab(&mut app, Tab::Dashboard);
+        select_tab(&mut app, Tab::Trainer);
+        assert!(app.quiz.is_some());
+    }
 }

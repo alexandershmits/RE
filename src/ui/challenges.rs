@@ -121,13 +121,14 @@ fn generate_in(work: &Path, dir: &Path) -> GeneratorReport {
         ("python", &[][..]),
         ("py", &["-3"][..]),
     ] {
-        match Command::new(program)
-            .args(prefix)
-            .arg(&script)
-            .arg("all")
-            .arg(dir)
-            .output()
+        let mut command = Command::new(program);
+        command.args(prefix).arg(&script).arg("all").arg(dir);
+        #[cfg(windows)]
         {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW: без мигающего окна консоли
+        }
+        match command.output() {
             Ok(out) if out.status.success() => {
                 return GeneratorReport {
                     ok: true,
@@ -265,7 +266,7 @@ fn flag_input(app: &mut AppState, ui: &mut egui::Ui, ctx: &egui::Context, ch: &C
             if app.submit_flag(&ch.id, &flag) {
                 app.toast(format!("🚩 Верно! +{} XP", xp::FLAG), ctx);
             } else {
-                app.toast("Неверно — вернитесь к дизассемблеру", ctx);
+                app.warn_for("Неверно — вернитесь к дизассемблеру", ctx, 3.0);
             }
         }
     });

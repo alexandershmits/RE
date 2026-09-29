@@ -76,7 +76,8 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
                     for (i, step) in lab.steps.iter().enumerate() {
                         let key = format!("{}:{i}", week.id);
                         let mut checked = app.progress.lab_steps_done.contains(&key);
-                        if ui.checkbox(&mut checked, step).changed() {
+                        let label = super::markup::job(ui, step, super::markup::format_for(ui));
+                        if ui.checkbox(&mut checked, label).changed() {
                             app.toggle_lab_step(&key);
                         }
                     }
@@ -107,12 +108,21 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
                                     .unwrap_or_default();
                                 app.pset_pending_explain = Some(key.clone());
                             }
-                            let text = if done {
-                                RichText::new(ps).weak().strikethrough()
+                            let visuals = ui.visuals();
+                            let base = if done {
+                                let weak = visuals.weak_text_color();
+                                egui::text::TextFormat {
+                                    color: weak,
+                                    strikethrough: egui::Stroke::new(1.0, weak),
+                                    ..super::markup::format_for(ui)
+                                }
                             } else {
-                                RichText::new(ps).strong()
+                                egui::text::TextFormat {
+                                    color: visuals.strong_text_color(),
+                                    ..super::markup::format_for(ui)
+                                }
                             };
-                            ui.label(text);
+                            ui.label(super::markup::job(ui, ps, base));
                         });
                         if let Some(explanation) = app.progress.pset_explains.get(&key) {
                             ui.label(
@@ -129,7 +139,8 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
                     ui.heading("✅ Чек-пойнт: понял или имитирую?");
                     for (i, item) in week.checkpoint.iter().enumerate() {
                         let mut checked = app.checkpoint_checked(&week.id, i);
-                        if ui.checkbox(&mut checked, item).changed() {
+                        let label = super::markup::job(ui, item, super::markup::format_for(ui));
+                        if ui.checkbox(&mut checked, label).changed() {
                             app.toggle_checkpoint(&week.id, i);
                         }
                     }

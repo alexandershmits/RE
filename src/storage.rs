@@ -40,11 +40,14 @@ pub fn config_dir_for(os: Os, env: Env) -> Option<PathBuf> {
         return Some(PathBuf::from(dir));
     }
     match os {
-        Os::Windows => env("APPDATA").map(|d| PathBuf::from(d).join("re50")),
-        Os::MacOs => env("HOME").map(|h| PathBuf::from(h).join("Library/Application Support/re50")),
+        Os::Windows => non_empty(env("APPDATA")).map(|d| PathBuf::from(d).join("re50")),
+        Os::MacOs => non_empty(env("HOME"))
+            .map(|h| PathBuf::from(h).join("Library/Application Support/re50")),
+        // по спецификации XDG относительный путь в XDG_CONFIG_HOME недействителен
         Os::Unix => non_empty(env("XDG_CONFIG_HOME"))
+            .filter(|d| d.to_string_lossy().starts_with('/'))
             .map(PathBuf::from)
-            .or_else(|| env("HOME").map(|h| PathBuf::from(h).join(".config")))
+            .or_else(|| non_empty(env("HOME")).map(|h| PathBuf::from(h).join(".config")))
             .map(|d| d.join("re50")),
     }
 }
@@ -218,7 +221,8 @@ impl Storage {
         let mut notice = None;
         let mut needs_save = false;
         match std::fs::read_to_string(path) {
-            Ok(text) => match serde_json::from_str::<T>(&text) {
+            // BOM в начале (старый Блокнот сохраняет «UTF-8 с BOM») — не порча файла
+            Ok(text) => match serde_json::from_str::<T>(text.trim_start_matches('\u{feff}')) {
                 Ok(value) => {
                     if self.read_only.is_none() {
                         self.rotate_backups();
@@ -251,7 +255,7 @@ impl Storage {
             let Ok(text) = std::fs::read_to_string(&backup) else {
                 continue;
             };
-            if let Ok(value) = serde_json::from_str::<T>(&text) {
+            if let Ok(value) = serde_json::from_str::<T>(text.trim_start_matches('\u{feff}')) {
                 let note = format!(
                     "Прогресс восстановлен из резервной копии {}",
                     backup.display()
@@ -293,7 +297,7 @@ impl Storage {
     /// Атомарная запись (tmp + rename). `Ok(false)` — содержимое не изменилось, диск не тронут.
     pub fn save<T: Serialize>(&mut self, value: &T) -> Result<bool, String> {
         if let Some(reason) = &self.read_only {
-            return Err(format!("сохранение отключено: {reason}"));
+            return Err(reason.clone());
         }
         let Some(path) = &self.file else {
             return Ok(false);
@@ -434,7 +438,10 @@ mod tests {
         assert!(loaded
             .notice
             .is_some_and(|n| n.contains("Сохранение отключено")));
-        assert!(s.save(&Doc { n: 1 }).unwrap_err().contains("отключено"));
+        assert!(s
+            .save(&Doc { n: 1 })
+            .unwrap_err()
+            .contains("не удалось прочитать"));
         assert!(
             dir.path().join(FILE_NAME).is_dir(),
             "то, что лежит на месте файла, не тронуто"
@@ -516,6 +523,16 @@ mod tests {
     }
 
     #[test]
+    fn utf8_bom_from_a_text_editor_is_not_corruption() {
+        let dir = TempDir::new("bom");
+        std::fs::write(dir.path().join(FILE_NAME), "\u{feff}{\"n\": 7}").unwrap();
+        let loaded = storage(&dir).load::<Doc>();
+        assert_eq!(loaded.value, Some(Doc { n: 7 }));
+        assert!(loaded.notice.is_none() && !loaded.needs_save);
+        assert!(!dir.path().join("progress.json.corrupt").exists());
+    }
+
+    #[test]
     fn missing_everything_is_a_quiet_fresh_start() {
         let dir = TempDir::new("fresh");
         let loaded = storage(&dir).load::<Doc>();
@@ -569,6 +586,19 @@ mod tests {
             Some(PathBuf::from("/custom"))
         );
         assert_eq!(config_dir_for(Os::Unix, &env_of(&[])), None);
+        // пустые переменные не дают путь «re50» от текущего каталога
+        assert_eq!(
+            config_dir_for(Os::Windows, &env_of(&[("APPDATA", "")])),
+            None
+        );
+        assert_eq!(config_dir_for(Os::MacOs, &env_of(&[("HOME", "")])), None);
+        assert_eq!(config_dir_for(Os::Unix, &env_of(&[("HOME", "")])), None);
+        // относительный XDG_CONFIG_HOME игнорируется
+        let relative = env_of(&[("XDG_CONFIG_HOME", "conf"), ("HOME", "/home/a")]);
+        assert_eq!(
+            config_dir_for(Os::Unix, &relative),
+            Some(PathBuf::from("/home/a/.config/re50"))
+        );
     }
 
     #[test]

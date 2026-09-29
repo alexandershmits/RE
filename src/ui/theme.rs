@@ -131,6 +131,12 @@ pub fn apply(ctx: &egui::Context, progress: &Progress) {
     for font in style.text_styles.values_mut() {
         font.size = (font.size * scale).clamp(8.0, 48.0);
     }
+    // Без явного выбора egui подхватывает тему ОС с первого кадра и берёт нетронутый слот стиля другой темы
+    ctx.set_theme(if light {
+        egui::ThemePreference::Light
+    } else {
+        egui::ThemePreference::Dark
+    });
     ctx.set_global_style(style);
 }
 

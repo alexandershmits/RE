@@ -1,6 +1,6 @@
 //! Персистентный прогресс студента и его миграции.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Версия схемы файла прогресса. 1 — до появления `xp_awarded`, `mistakes`, `rubric_done`.
@@ -20,6 +20,16 @@ pub struct WorkRecord {
 
 fn legacy_schema() -> u32 {
     1
+}
+
+/// Уровни читаются как `u64` и обрезаются до `u8`: значение вне диапазона (правка вручную, сбой прошлой
+/// версии) не должно отправлять весь файл прогресса в карантин.
+fn clamped_levels<'de, D: Deserializer<'de>>(d: D) -> Result<BTreeMap<String, u8>, D::Error> {
+    let raw = BTreeMap::<String, u64>::deserialize(d)?;
+    Ok(raw
+        .into_iter()
+        .map(|(id, level)| (id, u8::try_from(level).unwrap_or(u8::MAX)))
+        .collect())
 }
 
 /// Всё, что переживает перезапуск. `BTree*` — чтобы файл был детерминированным (чистые диффы бэкапов).
@@ -52,6 +62,7 @@ pub struct Progress {
     pub reexam_score: Option<(String, u32, u32)>,
     pub last_reexam_day: Option<u64>,
     /// Уровень карточки Лейтнера, 0..=5.
+    #[serde(deserialize_with = "clamped_levels")]
     pub card_levels: BTreeMap<String, u8>,
     /// День (с эпохи), когда карточка снова к повторению.
     pub card_due: BTreeMap<String, u64>,
@@ -284,6 +295,16 @@ mod tests {
             ja.contains(&format!("\"weeks_done\":{listed}")),
             "ключи должны идти по возрастанию"
         );
+    }
+
+    #[test]
+    fn out_of_range_card_level_does_not_reject_the_whole_file() {
+        let mut p: Progress =
+            serde_json::from_str(r#"{"xp": 5000, "card_levels": {"quiz:a": 300, "quiz:b": 2}}"#)
+                .unwrap();
+        assert_eq!(p.xp, 5000);
+        p.sanitize();
+        assert_eq!((p.card_levels["quiz:a"], p.card_levels["quiz:b"]), (5, 2));
     }
 
     #[test]

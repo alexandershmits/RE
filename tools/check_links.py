@@ -11,6 +11,7 @@
 Использование: python3 tools/check_links.py [--json путь] [--timeout секунд]
 """
 import concurrent.futures
+import http.client
 import json
 import os
 import re
@@ -18,6 +19,10 @@ import socket
 import sys
 import urllib.error
 import urllib.request
+
+for stream in (sys.stdout, sys.stderr):  # кириллица в отчёте не должна ронять вывод в консоли Windows
+    if hasattr(stream, "reconfigure"):
+        stream.reconfigure(encoding="utf-8")
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 URL_RE = re.compile(r"https?://[^\s)\]»\"'<>]+")
@@ -54,8 +59,10 @@ def probe(url, timeout):
             if isinstance(e.reason, socket.gaierror) and e.reason.errno == socket.EAI_NONAME:
                 return "DEAD", f"домен не найден: {e.reason}"
             last = str(e.reason)
-        except (TimeoutError, socket.timeout, ConnectionError, OSError) as e:
+        except (TimeoutError, socket.timeout, ConnectionError, OSError, http.client.HTTPException) as e:
             last = str(e)
+        except ValueError as e:  # некорректный URL в тексте курса: ссылку надо чинить, а не ронять весь прогон
+            return "DEAD", f"некорректный URL: {e}"
     return "FLAKY", last
 
 

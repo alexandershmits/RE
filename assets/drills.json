@@ -172,7 +172,8 @@
    "asm": [
     "test ecx, ecx",
     "mov eax, 3",
-    "cmovne eax, 7",
+    "mov edx, 7",
+    "cmovne eax, edx",
     "ret"
    ],
    "answers": [
@@ -182,7 +183,7 @@
     "a==0 ? 7 : 3"
    ],
    "correct": 0,
-   "explain": "cmov заменяет ветвление."
+   "explain": "cmov заменяет ветвление: 7 заранее лежит в edx, cmovne копирует его в eax, если ecx != 0 (у cmov нет формы с непосредственным операндом)."
   },
   {
    "c": "int f(int a) { return ~a + 1; }",
@@ -707,7 +708,7 @@
     "проверка магической константы"
    ],
    "correct": 3,
-   "explain": "0x534F4C45 = 'LEOS' little-endian — поиск сигнатуры."
+   "explain": "0x534F4C45 в little-endian лежит в памяти как 45 4C 4F 53 — «ELOS»: сравнение с константой — поиск сигнатуры (магического числа)."
   },
   {
    "asm": "test rcx, rcx\njs neg_path\nneg rcx",
@@ -784,7 +785,7 @@
     "xorshift-ГПСЧ"
    ],
    "correct": 3,
-   "explain": "Классический xorshift32 (Marsaglia). Используется как ГПСЧ и как дешёвый «шифр» строк в малвари."
+   "explain": "Классический xorshift64 (Marsaglia, сдвиги 13, 7, 17; у 32-битной версии — 13, 17, 5). Используется как ГПСЧ и как дешёвый «шифр» строк в малвари."
   },
   {
    "asm": "while (*s) { h ^= *s++; h = h*0x01000193; }",
@@ -853,7 +854,7 @@
    "explain": "Классический jump table: смещение int32 из таблицы + база = адрес case-ветки. rsi — значение switch."
   },
   {
-   "asm": "/* строка в .rodata: \"go:buildid\" ; функция получает rsp-относительный локальный стек растущих структур */\nmov rbx, gs:[0x30]",
+   "asm": "/* строка в .rodata: \"go:buildid\" ; функция получает rsp-относительный локальный стек растущих структур */\nmov rbx, fs:[-8]",
    "answers": [
     "Обращение к TEB Win32",
     "Возврат по vtable",
@@ -861,7 +862,7 @@
     "TLS/Go g-структура через segment register"
    ],
    "correct": 3,
-   "explain": "gs:[0x30] в Linux-Go — доступ к g (горутине) через TLS. Профиль Go-runtime (в Windows-Go — через gs тоже)."
+   "explain": "fs:[-8] в Linux-Go (amd64) — доступ к g (горутине) через TLS. Профиль Go-runtime (в Windows x64 TEB, напротив, лежит по gs:[0x30])."
   },
   {
    "asm": "ldarg.0 / ldstr \"key\" / call string::op_Equality / brfalse.s L / ldc.i4.1 / ret",
@@ -968,12 +969,12 @@
   },
   {
    "task": "Python + LIEF: вывести секции PE с энтропией > 7.2 (подозрение на упаковку)",
-   "answer": "import lief; b=lief.parse('f'); [print(s.name, s.size) for s in b.sections if s.size and (lambda d: __import__('math').log2 and sum((lambda c: [0])(d))(d))/s.size)(s.content)]",
+   "answer": "import lief, math, collections; H = lambda d: -sum(n/len(d)*math.log2(n/len(d)) for n in collections.Counter(d).values()); [print(s.name, round(H(bytes(s.content)), 2)) for s in lief.parse('f').sections if len(s.content) and H(bytes(s.content)) > 7.2]",
    "hint": "Проще: посчитай энтропию вручную по collections.Counter на s.content."
   },
   {
    "task": "dnSpy-CLI сценарий: перечислить assembly-референсы .NET-файла через Python (dnlib недоступен — через strings)",
-   "answer": "import re; d=open('f','rb').read(); print(set(re.findall(rb'#[\\\\w.]+dll|[\u0000]([ -~]{3,30}\\.dll)', d)) or [x for x in re.findall(rb'[A-Za-z0-9_.]{3,30}\\.dll', d)])",
+   "answer": "import re; print(sorted(set(re.findall(rb'[A-Za-z0-9_.]{3,30}\\.dll', open('f','rb').read()))))",
    "hint": "Имена DLL лежат в #Strings-хипе метаданных — часто видны простым поиском '.dll' в файле."
   }
  ]

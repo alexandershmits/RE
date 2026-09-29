@@ -11,6 +11,7 @@ const NAMES32: [&str; 8] = ["eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "ed
 const NAMES16: [&str; 8] = ["ax", "cx", "dx", "bx", "sp", "bp", "si", "di"];
 const NAMES8: [&str; 4] = ["al", "cl", "dl", "bl"];
 const MAX_STEPS: usize = 10_000;
+const RSP: usize = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Reg {
@@ -300,10 +301,12 @@ impl Machine {
             "push" => {
                 let v = self.read(&operand(args, op, 0)?)?;
                 self.stack.push(v);
+                self.regs[RSP] = self.regs[RSP].wrapping_sub(8);
             }
             "pop" => {
                 let d = reg_operand(args, op, 0)?;
                 let v = self.stack.pop().ok_or("pop из пустого стека")?;
+                self.regs[RSP] = self.regs[RSP].wrapping_add(8);
                 self.write(d, v);
             }
             "cmp" | "test" => {
@@ -391,6 +394,20 @@ mod tests {
             &[],
         );
         assert_eq!((m.get("rcx"), m.get("rdx")), (Ok(0xBBBB), Ok(0xAAAA)));
+    }
+
+    #[test]
+    fn push_and_pop_move_rsp_by_eight() {
+        let m = run(
+            &["mov rsp, 0x1000", "mov rax, 7", "push rax", "push rax"],
+            &[],
+        );
+        assert_eq!(m.get("rsp"), Ok(0x1000 - 16));
+        let m = run(
+            &["mov rsp, 0x1000", "mov rax, 7", "push rax", "pop rbx"],
+            &[],
+        );
+        assert_eq!((m.get("rsp"), m.get("rbx")), (Ok(0x1000), Ok(7)));
     }
 
     #[test]

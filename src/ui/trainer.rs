@@ -99,7 +99,7 @@ fn session(app: &mut AppState, ui: &mut egui::Ui, ctx: &egui::Context) {
                     .size(16.0)
                     .strong(),
             );
-            ui.label(RichText::new("💡 Вопрос добавлен в «Карточки»: он вернётся к повторению сегодня, затем через 1, 3 и 7 дней.").weak().size(11.0));
+            ui.label(RichText::new("💡 Вопрос добавлен в «Карточки»: он вернётся к повторению сегодня, затем через 1 и 3 дня; после третьего верного повтора уйдёт из ошибок.").weak().size(11.0));
         }
         egui::Frame::group(ui.style()).show(ui, |ui| {
             ui.label(RichText::new(format!("💡 {}", quiz.explain)));

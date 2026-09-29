@@ -68,6 +68,8 @@ pub struct AppState {
     pub quiz: Option<QuizSession>,
     /// (текст, момент исчезновения по часам egui)
     pub toast: Option<(String, f64)>,
+    /// Показывать сообщение как предупреждение (⚠), а не как успех (✔).
+    pub toast_warning: bool,
     pub new_achievements: Vec<String>,
     /// Момент, когда всплывающую ачивку пора скрыть (часы egui).
     pub popup_until: Option<f64>,
@@ -168,6 +170,7 @@ impl AppState {
             selected_week: 0,
             quiz: None,
             toast: None,
+            toast_warning: false,
             new_achievements: Vec::new(),
             popup_until: None,
             cards: None,
@@ -314,6 +317,13 @@ impl AppState {
 
     pub fn toast_for(&mut self, msg: impl Into<String>, ctx: &egui::Context, secs: f64) {
         self.toast = Some((msg.into(), self.now(ctx) + secs));
+        self.toast_warning = false;
+    }
+
+    /// Как `toast_for`, но в стиле предупреждения.
+    pub fn warn_for(&mut self, msg: impl Into<String>, ctx: &egui::Context, secs: f64) {
+        self.toast_for(msg, ctx, secs);
+        self.toast_warning = true;
     }
 
     // ── поиск ──

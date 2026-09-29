@@ -28,23 +28,36 @@ fn frames(ctx: &Context, app: &mut AppState, size: (f32, f32), count: usize) {
             warnings.is_empty(),
             "egui показал предупреждение вместо интерфейса: {warnings:?}"
         );
+        let raw = raw_markup_texts(&output.shapes);
+        assert!(raw.is_empty(), "на экране остались знаки разметки: {raw:?}");
     }
 }
 
 /// egui в debug-сборке рисует красные «First use of widget ID …» при совпадении идентификаторов:
 /// такие виджеты делят состояние (раскрытие, фокус), поэтому это ошибка интерфейса.
 fn warning_texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
+    shown_texts(shapes)
+        .into_iter()
+        .filter(|t| {
+            ["First use of", "Second use of", "Double use of"]
+                .iter()
+                .any(|w| t.contains(w))
+        })
+        .collect()
+}
+
+/// Тексты, в которых остались знаки разметки курса (`код`, **жирный**): их должен был разобрать рендер.
+fn raw_markup_texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
+    shown_texts(shapes)
+        .into_iter()
+        .filter(|t| t.matches('`').count() >= 2 || t.matches("**").count() >= 2)
+        .collect()
+}
+
+fn shown_texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
     fn walk(shape: &egui::epaint::Shape, out: &mut Vec<String>) {
         match shape {
-            egui::epaint::Shape::Text(t) => {
-                let text = t.galley.text();
-                if ["First use of", "Second use of", "Double use of"]
-                    .iter()
-                    .any(|w| text.contains(w))
-                {
-                    out.push(text.to_string());
-                }
-            }
+            egui::epaint::Shape::Text(t) => out.push(t.galley.text().to_string()),
             egui::epaint::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
             _ => {}
         }
@@ -95,6 +108,83 @@ fn every_tab_renders_in_both_themes_and_sizes() {
         }
     }
     re50::ui::apply_theme(&Context::default(), &Progress::default());
+}
+
+fn frame(ctx: &Context, app: &mut AppState, input: RawInput) -> egui::FullOutput {
+    let mut output = ctx.run_ui(input, |ui| re50::ui::run(app, ui));
+    output.textures_delta.clear(); // без окна текстуры никуда не загружаются
+    output
+}
+
+fn window(size: (f32, f32)) -> RawInput {
+    RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(size.0, size.1))),
+        ..RawInput::default()
+    }
+}
+
+#[test]
+fn startup_notice_stays_on_screen_until_it_is_dismissed() {
+    let ctx = context(false);
+    let mut app = AppState::in_memory();
+    app.startup_notice = Some("Файл прогресса повреждён".into());
+    let mut seen = false;
+    for _ in 0..3 {
+        let output = frame(&ctx, &mut app, window((1200.0, 800.0)));
+        seen |= shown_texts(&output.shapes)
+            .iter()
+            .any(|t| t.contains("⚠") && t.contains("Файл прогресса повреждён"));
+    }
+    assert!(seen, "предупреждение должно быть видно");
+    assert!(
+        app.startup_notice.is_some(),
+        "само оно не пропадает: закрывает его пользователь"
+    );
+}
+
+#[test]
+fn saved_theme_wins_over_the_system_theme() {
+    // регресс: при светлой ОС и сохранённой тёмной теме egui брал нетронутый «светлый» слот стиля —
+    // палитра выходила тёмной на светлых визуалах, а масштаб шрифта пропадал
+    for (saved_light, system) in [(false, egui::Theme::Light), (true, egui::Theme::Dark)] {
+        let ctx = Context::default();
+        let progress = Progress {
+            theme: if saved_light { "light" } else { "dark" }.into(),
+            font_scale: 1.5,
+            ..Progress::default()
+        };
+        re50::ui::install(&ctx, &progress);
+        let mut app = AppState::in_memory();
+        app.progress = progress.clone();
+        let input = RawInput {
+            system_theme: Some(system),
+            ..window((1200.0, 800.0))
+        };
+        frame(&ctx, &mut app, input);
+        let style = ctx.global_style();
+        assert_eq!(
+            style.visuals.dark_mode, !saved_light,
+            "сохранена светлая: {saved_light}, тема ОС: {system:?}"
+        );
+        let body = style.text_styles[&egui::TextStyle::Body].size;
+        let plain = egui::Style::default().text_styles[&egui::TextStyle::Body].size;
+        assert!(
+            (body - plain * 1.5).abs() < 0.01,
+            "масштаб шрифта потерян: {body}"
+        );
+    }
+}
+
+#[test]
+fn raw_markup_detector_sees_unrendered_marks() {
+    let ctx = context(false);
+    let mut output = ctx.run_ui(RawInput::default(), |ui| {
+        ui.label("вот `код` и **жирный**");
+        ui.label("обычная строка и char **argv");
+    });
+    output.textures_delta.clear();
+    let raw = raw_markup_texts(&output.shapes);
+    assert_eq!(raw, vec!["вот `код` и **жирный**".to_string()]);
 }
 
 #[test]

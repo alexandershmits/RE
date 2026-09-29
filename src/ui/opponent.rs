@@ -65,7 +65,7 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
                 ui.add(egui::TextEdit::singleline(&mut app.opponent.llm_model).desired_width(120.0));
             } else {
                 ui.label(RichText::new(format!(
-                    "⚪ Ollama не запущен — работает офлайн-банк из {} каверзных вопросов. Для живого режима: ollama.com → `ollama pull llama3.1`.",
+                    "⚪ Ollama не запущен — работает офлайн-банк из {} каверзных вопросов. Для живого режима: ollama.com → ollama pull llama3.1.",
                     questions.len()
                 )).weak());
             }
@@ -93,7 +93,8 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
                 app.record_opponent_score(qs.topic, verdict.score);
                 app.opponent.verdict = Some((verdict.score, verdict.critique));
                 app.opponent.llm_reply = None;
-                if online && !app.opponent.answer.trim().is_empty() && app.opponent.llm_job.is_none() {
+                app.opponent.llm_job = None; // ответ модели на прежний текст больше не нужен
+                if online && !app.opponent.answer.trim().is_empty() {
                     let (model, topic, answer) =
                         (app.opponent.llm_model.clone(), qs.topic.to_string(), app.opponent.answer.clone());
                     app.opponent.llm_job = Some(Job::spawn(&ctx, move || opponent::ollama_ask(&model, &topic, &answer)));

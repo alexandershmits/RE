@@ -77,7 +77,16 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
         if ui.button(if last { "Завершить экзамен" } else { "Далее ▶" }).clicked() {
             if last {
                 let message = app.finish_reexam(today);
-                app.toast_for(message, &ctx, 8.0);
+                let passed = app
+                    .progress
+                    .reexam_score
+                    .as_ref()
+                    .is_some_and(|(_, correct, total)| correct * 100 >= total * REEXAM_PASS_PERCENT);
+                if passed {
+                    app.toast_for(message, &ctx, 8.0);
+                } else {
+                    app.warn_for(message, &ctx, 8.0);
+                }
             } else {
                 app.reexam_next();
             }
