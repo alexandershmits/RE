@@ -42,7 +42,7 @@ jobs:
       - name: Name the binary per platform
         shell: bash
         run: cp "target/release/${{ matrix.exe }}" "${{ matrix.asset }}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset }}
           path: ${{ matrix.asset }}
