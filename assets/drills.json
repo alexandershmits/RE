@@ -764,6 +764,116 @@
    ],
    "correct": 3,
    "explain": "RIP-relative — позиционно-независимый код."
+  },
+  {
+   "asm": "if (buf[i] == 0x63 && buf[i+1] == 0x7C) ... /* таблица 256 байт начинается 63 7C 77 7B */",
+   "answers": [
+    "RC4",
+    "AES S-box (таблица подстановки)",
+    "CRC32-таблица",
+    "Base64-алфавит"
+   ],
+   "correct": 1,
+   "explain": "63 7C 77 7B F2 — первые байты AES S-box. Увидел — это AES: ищи ExpandKey (Rcon 01 02 04...)."
+  },
+  {
+   "asm": "x ^= x << 13; x ^= x >> 7; x ^= x << 17;",
+   "answers": [
+    "MD5-раунд",
+    "xorshift-ГПСЧ",
+    "CRC-обновление",
+    "AES MixColumns"
+   ],
+   "correct": 1,
+   "explain": "Классический xorshift32 (Marsaglia). Используется как ГПСЧ и как дешёвый «шифр» строк в малвари."
+  },
+  {
+   "asm": "while (*s) { h ^= *s++; h = h*0x01000193; }",
+   "answers": [
+    "djb2",
+    "FNV-1a 32-bit",
+    "Adler-32",
+    "SHA-1step"
+   ],
+   "correct": 1,
+   "explain": "0x01000193 = FNV prime 32. FNV-1a: xor затем умножение. djb2 — умножение затем xor (5381)."
+  },
+  {
+   "asm": "for (i=0;i<256;i++) s[i]=i; j=0; for (i=0;i<256;i++){ j=(j+s[i]+key[i%kl])&0xFF; swap(s[i],s[j]); }",
+   "answers": [
+    "AES key schedule",
+    "RC4 KSA",
+    "Salsa20 init",
+    "XOR-таблица"
+   ],
+   "correct": 1,
+   "explain": "Инициализация S-блока + свопы с ключом — RC4 Key Scheduling Algorithm. Дальше ищи PRGA (i=j=0, swap, s[(s[i]+s[j])&0xFF])."
+  },
+  {
+   "asm": "v = _rotl(v, 7); v += k[round%4]; v ^= k[(round+1)%4];",
+   "answers": [
+    "AES-раунд",
+    "TEA/XTEA-подобный раунд",
+    "MD5-функция",
+    "Base64-шаг"
+   ],
+   "correct": 1,
+   "explain": "rotl+add+xor с ключами — профиль TEA/XTEA (дельта 0x9E3779B9 рядом подтвердит)."
+  },
+  {
+   "asm": "if ((magic[0]=='e')&&(magic[1]=='x')&&(magic[2]=='p')&&(magic[3]=='a')&&(magic[4]=='n')&&(magic[5]=='d'))",
+   "answers": [
+    "Проверка ELF-заголовка",
+    "ChaCha/Salsa20 ('expand 32-byte k')",
+    "ZIP-сигнатура",
+    "Проверка PAR2"
+   ],
+   "correct": 1,
+   "explain": "«expand 32-byte k» — константа sigma ChaCha20/Salsa20. Малварь часто шифрует C2-трафик именно этими шифрами."
+  },
+  {
+   "asm": "mov rax, [rcx]; mov rax, [rax+0x10]; call qword [rax+0x18]",
+   "answers": [
+    "Чтение поля структуры",
+    "Вызов через vtable: объект -> vptr -> слот метода",
+    "Косвенный syscall",
+    "SEH-установка"
+   ],
+   "correct": 1,
+   "explain": "[obj] = указатель на vtable, +0x10 — поле/RTTI, call [rax+0x18] — вызов 3-го виртуального метода. Профиль C++ в декомпиле."
+  },
+  {
+   "asm": "movsxd rax, dword [rdi + rsi*4]; /* таблица int32 */ add rax, rdi; jmp rax",
+   "answers": [
+    "Switch jump table (RIP-relative в GCC/MSVC)",
+    "Виртуальный вызов",
+    "Хвостовая рекурсия",
+    "Возврат struct"
+   ],
+   "correct": 0,
+   "explain": "Классический jump table: смещение int32 из таблицы + база = адрес case-ветки. rsi — значение switch."
+  },
+  {
+   "asm": "/* строка в .rodata: \"go:buildid\" ; функция получает rsp-относительный локальный стек растущих структур */\nmov rbx, gs:[0x30]",
+   "answers": [
+    "PEB-доступ",
+    "TLS/Go g-структура через segment register",
+    "Возврат по vtable",
+    "Обращение к TEB Win32"
+   ],
+   "correct": 1,
+   "explain": "gs:[0x30] в Linux-Go — доступ к g (горутине) через TLS. Профиль Go-runtime (в Windows-Go — через gs тоже)."
+  },
+  {
+   "asm": "ldarg.0 / ldstr \"key\" / call string::op_Equality / brfalse.s L / ldc.i4.1 / ret",
+   "answers": [
+    "x86-ассемблер",
+    "IL (.NET): метод проверяет строковый аргумент",
+    "Java-байткод",
+    "Lua-байткод"
+   ],
+   "correct": 1,
+   "explain": "Мнемоники ldarg/ldstr/brfalse — чистый CIL. Эквивалент C#: bool Check(string s) => s == \"key\";"
   }
  ],
  "script": [
@@ -816,6 +926,56 @@
    "task": "Python: энтропия ~8 бит/байт означает...",
    "answer": "упаковку/шифрование (почти случайные данные)",
    "hint": "<6 — обычный код/текст."
+  },
+  {
+   "task": "Python: найти AES S-box в бинаре (первые 4 байта 63 7C 77 7B) и вывести смещение",
+   "answer": "d=open('f','rb').read(); print(d.find(bytes([0x63,0x7C,0x77,0x7B])))",
+   "hint": "find возвращает -1 если не найдено — учти это в отчёте."
+  },
+  {
+   "task": "pefile: перечислить все импортируемые функции из ws2_32.dll (сеть)",
+   "answer": "import pefile; pe=pefile.PE('f'); [e.name.decode() for e in pe.DIRECTORY_ENTRY_IMPORT if b'WS2_32' in e.dll.upper() for i in e.imports if i.name for i in [print(i.name.decode())]]",
+   "hint": "Импорты из ws2_32 (socket, connect, send) = сетевое поведение без запуска."
+  },
+  {
+   "task": "YARA: правило на строку конфига 'http://%s:%d/%s' в wide-кодировке",
+   "answer": "rule c2url { strings: $s = \"http://%s:%d/%s\" wide nocase condition: $s }",
+   "hint": "wide = UTF-16LE (строки .NET/WinAPI), nocase — регистр может меняться."
+  },
+  {
+   "task": "Frida: хук Java-метода javax.crypto.Cipher.doFinal — дампить входные байты",
+   "answer": "Java.perform(function(){ var C=Java.use('javax.crypto.Cipher'); C.doFinal.overload('[B').implementation=function(b){ console.log(hexdump(b)); return this.doFinal(b); }; });",
+   "hint": "doFinal('[B') — перегрузка с byte[]. Java.perform обязателен."
+  },
+  {
+   "task": "jadx-CLI: декомпилировать APK в папку out из командной строки",
+   "answer": "jadx -d out app.apk",
+   "hint": "GUI не нужен: jadx-cli быстрее и скриптуется."
+  },
+  {
+   "task": "Python: распаковать UPX-файл через subprocess и проверить MZ-сигнатуру результата",
+   "answer": "import subprocess; subprocess.run(['upx','-d','f']); print(open('f','rb').read(2)==b'MZ')",
+   "hint": "upx -d пишет на место; MZ — первые 2 байта валидного PE."
+  },
+  {
+   "task": "capa: запустить с отчётом JSON и вывести только MITRE-техники",
+   "answer": "capa f --json | python3 -c \"import json,sys; d=json.load(sys.stdin); [print(r['meta']['attack']) for r in d['rules'].values() if 'attack' in r['meta']]\"",
+   "hint": "capa --json даёт маппинг на ATT&CK — удобнее grep'ать чем текстовый вывод."
+  },
+  {
+   "task": "GoReSym: извлечь имена функций из Go-бинаря в JSON",
+   "answer": "./GoReSym -t -d -p binary > names.json",
+   "hint": "-d — деманглирование, -p — пакеты. Результат скармливается в скрипт переименования Ghidra."
+  },
+  {
+   "task": "Python + LIEF: вывести секции PE с энтропией > 7.2 (подозрение на упаковку)",
+   "answer": "import lief; b=lief.parse('f'); [print(s.name, s.size) for s in b.sections if s.size and (lambda d: __import__('math').log2 and sum((lambda c: [0])(d))(d))/s.size)(s.content)]",
+   "hint": "Проще: посчитай энтропию вручную по collections.Counter на s.content."
+  },
+  {
+   "task": "dnSpy-CLI сценарий: перечислить assembly-референсы .NET-файла через Python (dnlib недоступен — через strings)",
+   "answer": "import re; d=open('f','rb').read(); print(set(re.findall(rb'#[\\\\w.]+dll|[\u0000]([ -~]{3,30}\\.dll)', d)) or [x for x in re.findall(rb'[A-Za-z0-9_.]{3,30}\\.dll', d)])",
+   "hint": "Имена DLL лежат в #Strings-хипе метаданных — часто видны простым поиском '.dll' в файле."
   }
  ]
 }

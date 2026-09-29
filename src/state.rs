@@ -40,6 +40,12 @@ pub struct Progress {
     /// XP history: (unix_day, total_xp) — sampled on each save, capped at 400 points
     #[serde(default)]
     pub xp_history: Vec<(u64, u32)>,
+    /// Режим «Ставка»: challenge id -> гипотеза, написанная ДО решения
+    #[serde(default)]
+    pub challenge_bets: std::collections::HashMap<String, String>,
+    /// Ставка оценена? (после решения студент отмечает: угадал механизм/нет)
+    #[serde(default)]
+    pub bet_results: std::collections::HashMap<String, bool>,
     /// current streak: (last_active_unix_day, streak_len)
     #[serde(default)]
     pub streak: (u64, u32),

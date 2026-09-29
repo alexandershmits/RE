@@ -44,8 +44,20 @@ mod tests {
         let c = Curriculum::load();
         assert!(c.weeks.len() >= 37, "weeks missing");
         assert!(c.quizzes.len() >= 60);
-        assert!(c.drills.asm.len() + c.drills.addr.len() + c.drills.pattern.len() + c.drills.script.len() >= 69);
-        assert!(!c.challenges.is_empty(), "no challenges");
+        assert!(c.drills.asm.len() + c.drills.addr.len() + c.drills.pattern.len() + c.drills.script.len() >= 89);
+        assert!(c.challenges.len() >= 15, "challenges missing");
+    }
+
+    #[test]
+    fn module15_has_quizzes() {
+        let c = Curriculum::load();
+        let m15: Vec<_> = c.quizzes.iter().filter(|q| q.module == 15).collect();
+        assert!(m15.len() >= 12, "module 15 quizzes missing: {}", m15.len());
+        // они попадают в re-exam пул только если student их ответил — проверяем структуру
+        for q in &m15 {
+            assert!(q.answers.len() == 4);
+            assert!(q.correct < 4);
+        }
     }
 
     #[test]

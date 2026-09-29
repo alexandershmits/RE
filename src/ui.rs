@@ -116,8 +116,8 @@ pub fn run(app: &mut AppState, ctx: &egui::Context) {
             (Tab::Diagrams, "🗺", "Схемы"),
             (Tab::Placement, "🧪", "Тест входа"),
             (Tab::Sims, "⚙️", "Симуляторы"),
-            (Tab::Drills, "🔁", "Дриллы (69)"),
-            (Tab::Challenges, "🚩", "Челленджи (13)"),
+            (Tab::Drills, "🔁", "Дриллы (89)"),
+            (Tab::Challenges, "🚩", "Челленджи (15)"),
             (Tab::Reexam, "🎓", "Re-certification"),
             (Tab::Opponent, "🥋", "Оппонент"),
         ] {
@@ -194,6 +194,17 @@ fn dashboard(app: &mut AppState, ctx: &egui::Context) {
             ui.heading(RichText::new(&app.curriculum.course.title).color(ACCENT).size(26.0));
 
             // Поведенческий анализ (анти-паттерны)
+            // Точность интуиции (ставки)
+            if !app.progress.bet_results.is_empty() {
+                let total = app.progress.bet_results.len();
+                let hit = app.progress.bet_results.values().filter(|b| **b).count();
+                let pct = 100.0 * hit as f32 / total as f32;
+                ui.add_space(6.0);
+                ui.label(RichText::new(format!(
+                    "🎯 Точность гипотез: {hit}/{total} ({pct:.0}%) — {}",
+                    if pct >= 60.0 { "интуиция калибруется" } else { "пока угадывание — копай глубже перед ставкой" }
+                )).size(13.0));
+            }
             {
                 let findings = crate::detector::analyze(&app.progress, &app.curriculum);
                 if !findings.is_empty() {
@@ -1378,7 +1389,7 @@ fn challenges(app: &mut AppState, ctx: &egui::Context) {
         ui.label(RichText::new("Та же логика проверки — но пароль/ключ/маска рандомизируются при каждой генерации. Запомнить ответ из райтапа невозможно: работает только понимание.").weak().size(12.0));
         ui.add_space(6.0);
         ui.label(RichText::new(
-            "13 учебных crackmes (Linux x86-64 ELF), собранных специально для курса.              Бинари лежат в assets/challenges/. Решите в Ghidra/x64dbg, введите флаг — приложение проверит.              +50 XP за флаг, подсказки внутри.")
+            "15 учебных crackmes (Linux x86-64 ELF), собранных специально для курса.              Бинари лежат в assets/challenges/. Решите в Ghidra/x64dbg, введите флаг — приложение проверит.              +50 XP за флаг, подсказки внутри.")
             .weak());
         ui.separator();
         ScrollArea::vertical().id_salt("challenges").show(ui, |ui| {
@@ -1386,7 +1397,8 @@ fn challenges(app: &mut AppState, ctx: &egui::Context) {
             for ch in app.curriculum.challenges.clone() {
                 if ch.level != last_level {
                     let names = ["", "🥉 Уровень 1 — строки и константы", "🥈 Уровень 2 — арифметика и байты",
-                                 "🥇 Уровень 3 — алгоритмы и хеши", "🏅 Уровень 4 — трансформации и ключгены"];
+                                 "🥇 Уровень 3 — алгоритмы и хеши", "🏅 Уровень 4 — трансформации и ключгены",
+                                 "🏆 Уровень 5 — специализация (.NET/Go/IL)"];
                     ui.add_space(6.0);
                     ui.strong(RichText::new(names[ch.level as usize]).color(ACCENT).size(16.0));
                     last_level = ch.level;
@@ -1416,6 +1428,41 @@ fn challenges(app: &mut AppState, ctx: &egui::Context) {
                         }
                         ui.label(RichText::new(format!("файлы: {} / {}.exe", ch.id, ch.id)).weak().size(10.0));
                     });
+                    // 🎯 Режим «Ставка»: гипотеза ДО решения
+                    {
+                        let has_bet = app.progress.challenge_bets.contains_key(&ch.id);
+                        let bet_done = app.progress.bet_results.contains_key(&ch.id);
+                        if !bet_done {
+                            ui.collapsing(
+                                if has_bet { "🎯 Ставка сделана — изменить" } else { "🎯 Ставка: напиши гипотезу ДО решения" },
+                                |ui| {
+                                    ui.label(RichText::new(
+                                        "Напиши, где и как проверяется пароль — до того, как решишь. После решения сравнишь гипотезу с реальностью. Так калибруется профессиональная интуиция."
+                                    ).weak().size(11.0));
+                                    let mut bet = app.progress.challenge_bets.get(&ch.id).cloned().unwrap_or_default();
+                                    let resp = egui::TextEdit::multiline(&mut bet)
+                                        .desired_rows(3)
+                                        .hint_text("Например: 'ожидаю цикл по байтам с xor 0x42 и сравнение через memcmp в конце'")
+                                        .show(ui).response;
+                                    if resp.changed() {
+                                        app.progress.challenge_bets.insert(ch.id.clone(), bet.clone());
+                                    }
+                                    if has_bet && solved && ui.small_button("✔ Сверить: гипотеза верна?").clicked() {
+                                        app.progress.bet_results.insert(ch.id.clone(), true);
+                                        app.toast("Ставка зафиксирована. Точность интуиции растёт!", ctx);
+                                    }
+                                    if has_bet && solved && ui.small_button("✘ Сверить: гипотеза мимо").clicked() {
+                                        app.progress.bet_results.insert(ch.id.clone(), false);
+                                        app.toast("Мимо — это тоже данные. Запиши в журнал, где ошиблась интуиция.", ctx);
+                                    }
+                                },
+                            );
+                        } else {
+                            let ok = app.progress.bet_results.get(&ch.id).copied().unwrap_or(false);
+                            ui.label(RichText::new(if ok { "🎯 Ставка: угадал механизм ✔" } else { "🎯 Ставка: мимо — выводы в журнал" })
+                                .color(if ok { GOOD } else { WARN }).size(11.0));
+                        }
+                    }
                     if !solved {
                         ui.horizontal(|ui| {
                             ui.label("Флаг:");
