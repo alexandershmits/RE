@@ -16,6 +16,7 @@ mod diagrams;
 mod drills;
 mod interview;
 mod journal;
+mod markup;
 mod opponent;
 mod placement;
 mod reexam;
@@ -28,6 +29,9 @@ pub mod widgets;
 mod work;
 
 use theme::{accent, good, soft, warn};
+/// Сколько секунд висит окно новой ачивки, если его не закрыли.
+const POPUP_SECS: f64 = 8.0;
+
 pub use theme::{apply as apply_theme, install};
 
 /// Один кадр всего интерфейса.
@@ -244,25 +248,33 @@ fn import_window(app: &mut AppState, ctx: &egui::Context) {
 
 fn achievement_popup(app: &mut AppState, ctx: &egui::Context) {
     let Some(name) = app.new_achievements.first().cloned() else {
+        app.popup_until = None;
         return;
     };
-    egui::Area::new(egui::Id::new("ach_popup"))
-        .anchor(egui::Align2::RIGHT_TOP, [-12.0, 12.0])
-        .order(egui::Order::Foreground)
-        .show(ctx, |ui| {
-            egui::Frame::popup(ui.style())
-                .fill(soft(46, 38, 20))
-                .stroke(egui::Stroke::new(1.5, warn()))
-                .inner_margin(14.0)
-                .show(ui, |ui| {
-                    ui.strong(RichText::new("🏅 НОВАЯ АЧИВКА!").color(warn()).size(16.0));
-                    ui.label(&name);
-                    if ui.button("Отлично!").clicked() {
-                        app.new_achievements.remove(0);
-                    }
-                });
-        });
-    ctx.request_repaint_after(Duration::from_millis(500));
+    let now = app.now(ctx);
+    let until = *app.popup_until.get_or_insert(now + POPUP_SECS);
+    let mut dismiss = now > until;
+    if !dismiss {
+        egui::Area::new(egui::Id::new("ach_popup"))
+            .anchor(egui::Align2::RIGHT_TOP, [-12.0, 12.0])
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                egui::Frame::popup(ui.style())
+                    .fill(soft(46, 38, 20))
+                    .stroke(egui::Stroke::new(1.5, warn()))
+                    .inner_margin(14.0)
+                    .show(ui, |ui| {
+                        ui.strong(RichText::new("🏅 НОВАЯ АЧИВКА!").color(warn()).size(16.0));
+                        ui.label(&name);
+                        dismiss = ui.button("Отлично!").clicked();
+                    });
+            });
+        ctx.request_repaint_after(Duration::from_millis(500));
+    }
+    if dismiss {
+        app.new_achievements.remove(0);
+        app.popup_until = None;
+    }
 }
 
 fn top_bar(app: &mut AppState, root: &mut egui::Ui) {

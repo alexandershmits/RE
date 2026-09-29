@@ -36,7 +36,8 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
                     ui.strong(RichText::new(name).color(accent()).size(16.0));
                     last_level = ch.level;
                 }
-                card(app, ui, &ctx, ch);
+                // у каждой карточки свои «Подсказка» и «Ставка»: без push_id их идентификаторы совпадали
+                ui.push_id(&ch.id, |ui| card(app, ui, &ctx, ch));
                 ui.add_space(4.0);
             }
             ui.add_space(10.0);

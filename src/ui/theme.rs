@@ -121,6 +121,7 @@ pub fn apply(ctx: &egui::Context, progress: &Progress) {
         v.hyperlink_color = Color32::from_rgb(255, 110, 110);
     }
     v.selection.bg_fill = Color32::from_rgb(200, 40, 60);
+    v.selection.stroke = egui::Stroke::new(1.0, Color32::WHITE); // контраст 5.5:1 на красном фоне
     let mut style = egui::Style {
         visuals: v,
         ..egui::Style::default()

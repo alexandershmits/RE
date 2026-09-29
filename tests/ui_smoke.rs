@@ -23,7 +23,34 @@ fn frames(ctx: &Context, app: &mut AppState, size: (f32, f32), count: usize) {
         };
         let mut output = ctx.run_ui(input, |ui| re50::ui::run(app, ui));
         output.textures_delta.clear(); // без окна текстуры никуда не загружаются
+        let warnings = warning_texts(&output.shapes);
+        assert!(
+            warnings.is_empty(),
+            "egui показал предупреждение вместо интерфейса: {warnings:?}"
+        );
     }
+}
+
+/// egui в debug-сборке рисует красные «First use of widget ID …» при совпадении идентификаторов:
+/// такие виджеты делят состояние (раскрытие, фокус), поэтому это ошибка интерфейса.
+fn warning_texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
+    fn walk(shape: &egui::epaint::Shape, out: &mut Vec<String>) {
+        match shape {
+            egui::epaint::Shape::Text(t) => {
+                let text = t.galley.text();
+                if text.contains("First use of widget ID")
+                    || text.contains("Second use of widget ID")
+                {
+                    out.push(text.to_string());
+                }
+            }
+            egui::epaint::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    shapes.iter().for_each(|s| walk(&s.shape, &mut out));
+    out
 }
 
 /// Приложение с историей: часть недель закрыта, есть верные и неверные ответы, ачивки, XP.

@@ -107,10 +107,11 @@ mod tests {
             !app.achievement_met(&rule(|r| r.quiz_modules = vec![250])),
             "нет квизов — не «всё решено»"
         );
-        // 90% — граница: ровно 90% достаточно, 89% — нет
+        // 90% — граница: минимально достаточное число верных проходит, на одно меньше — нет
         let total = app.curriculum.quizzes.len();
+        let needed = (total * 90).div_ceil(100);
         app.progress.quiz_correct.clear();
-        for q in app.curriculum.quizzes.iter().take(total * 9 / 10) {
+        for q in app.curriculum.quizzes.iter().take(needed) {
             app.progress.quiz_correct.insert(q.id.clone());
         }
         assert!(app.achievement_met(&ninety));

@@ -56,7 +56,7 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
                         RichText::new("🎯 Проблема недели — сначала ЗАЧЕМ, потом КАК:")
                             .color(warn()),
                     );
-                    ui.label(case);
+                    super::markup::show(ui, case);
                 });
                 ui.add_space(8.0);
             }
@@ -64,7 +64,7 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
             if !week.lectures.is_empty() {
                 ui.heading("📖 Лекции");
                 for l in &week.lectures {
-                    ui.label(format!("• {l}"));
+                    super::markup::show(ui, &format!("• {l}"));
                 }
                 ui.add_space(8.0);
             }

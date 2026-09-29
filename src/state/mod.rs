@@ -65,6 +65,8 @@ pub struct AppState {
     /// (текст, момент исчезновения по часам egui)
     pub toast: Option<(String, f64)>,
     pub new_achievements: Vec<String>,
+    /// Момент, когда всплывающую ачивку пора скрыть (часы egui).
+    pub popup_until: Option<f64>,
     pub cards: Option<CardSession>,
     pub placement: Option<PlacementState>,
     pub sim: SimState,
@@ -135,6 +137,7 @@ impl AppState {
             quiz: None,
             toast: None,
             new_achievements: Vec::new(),
+            popup_until: None,
             cards: None,
             placement: None,
             sim: SimState::default(),
