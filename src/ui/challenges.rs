@@ -3,7 +3,7 @@ use crate::curriculum::Challenge;
 use crate::jobs::Job;
 use crate::state::{xp, AppState, GeneratorReport};
 use eframe::egui::{self, RichText, ScrollArea};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const LEVEL_NAMES: [&str; 5] = [
@@ -74,9 +74,41 @@ fn generator_row(app: &mut AppState, ui: &mut egui::Ui, ctx: &egui::Context) {
 }
 
 /// Запускает вшитый Python-генератор в фоне. Пробует `python3`, `python`, `py -3` (Windows).
+/// Личный каталог с уникальным именем. `create_dir` не следует по чужому симлинку и не принимает уже
+/// существующий путь, поэтому подменить скрипт между записью и запуском Python нельзя.
+fn private_dir() -> std::io::Result<PathBuf> {
+    let dir = std::env::temp_dir().join(format!(
+        "re50-generator-{}-{:x}",
+        std::process::id(),
+        crate::rng::time_seed()
+    ));
+    std::fs::create_dir(&dir)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))?;
+    }
+    Ok(dir)
+}
+
 fn run_generator(dir: &Path) -> GeneratorReport {
+    let work = match private_dir() {
+        Ok(work) => work,
+        Err(e) => {
+            return GeneratorReport {
+                ok: false,
+                message: format!("Ошибка: не удалось создать временный каталог: {e}"),
+            }
+        }
+    };
+    let report = generate_in(&work, dir);
+    let _ = std::fs::remove_dir_all(&work);
+    report
+}
+
+fn generate_in(work: &Path, dir: &Path) -> GeneratorReport {
     let fail = |message: String| GeneratorReport { ok: false, message };
-    let script = std::env::temp_dir().join("re50_challenge_generator.py");
+    let script = work.join("challenge_generator.py");
     if let Err(e) = std::fs::write(&script, crate::generator_script::GENERATOR_PY) {
         return fail(format!(
             "Ошибка: не удалось записать скрипт генератора: {e}"
@@ -237,4 +269,29 @@ fn flag_input(app: &mut AppState, ui: &mut egui::Ui, ctx: &egui::Context, ch: &C
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generator_workdirs_are_private_and_unique() {
+        let (a, b) = (private_dir().unwrap(), private_dir().unwrap());
+        assert_ne!(a, b);
+        assert!(
+            std::fs::create_dir(&a).is_err(),
+            "существующий путь занять нельзя"
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                std::fs::metadata(&a).unwrap().permissions().mode() & 0o777,
+                0o700
+            );
+        }
+        let _ = std::fs::remove_dir_all(a);
+        let _ = std::fs::remove_dir_all(b);
+    }
 }
