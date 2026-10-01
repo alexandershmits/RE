@@ -17,7 +17,12 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
             let n = cur.rubric.len();
             let done = (0..n).filter(|i| app.progress.rubric_done.contains(i)).count();
             ui.add_space(8.0);
-            ui.add(egui::ProgressBar::new(done as f32 / n.max(1) as f32).text(format!("{done}/{n}")));
+            super::widgets::labeled_progress(
+                ui,
+                done as f32 / n.max(1) as f32,
+                240.0,
+                format!("{done}/{n}"),
+            );
             if ui.button("Сбросить").clicked() {
                 app.reset_rubric();
             }

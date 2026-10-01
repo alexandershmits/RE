@@ -142,7 +142,7 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
         for (topic, score) in &rows {
             ui.horizontal(|ui| {
                 ui.label(topic.as_str());
-                ui.add(egui::ProgressBar::new(f32::from(**score) / 100.0).desired_width(160.0).text(score.to_string()));
+                super::widgets::labeled_progress(ui, f32::from(**score) / 100.0, 160.0, score.to_string());
             });
         }
         if rows.is_empty() {

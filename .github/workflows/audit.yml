@@ -1,0 +1,23 @@
+name: audit
+
+# Советы RustSec проверяются отдельно от ci.yml: список новых уязвимостей меняется сам по себе,
+# и обычный PR не должен краснеть из-за чужого совета. Поэтому — раз в неделю и на PR, меняющих зависимости.
+on:
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths: ["Cargo.toml", "Cargo.lock", "deny.toml"]
+
+permissions:
+  contents: read
+
+jobs:
+  advisories:
+    name: RustSec advisories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories

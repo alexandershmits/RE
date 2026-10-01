@@ -3,9 +3,15 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use re50::crash;
 use re50::state::AppState;
+use re50::storage::Paths;
+use std::process::ExitCode;
 
-fn main() -> Result<(), eframe::Error> {
+fn main() -> ExitCode {
+    let log = crash::log_path(&Paths::detect());
+    crash::install_panic_hook(log.clone());
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1180.0, 780.0])
@@ -15,7 +21,7 @@ fn main() -> Result<(), eframe::Error> {
     };
 
     let app = AppState::load_or_default();
-    eframe::run_native(
+    let result = eframe::run_native(
         "RE-50",
         options,
         Box::new(move |cc| {
@@ -23,5 +29,18 @@ fn main() -> Result<(), eframe::Error> {
             app.configure(cc);
             Ok(Box::new(app))
         }),
-    )
+    );
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            let graphics = matches!(
+                error,
+                eframe::Error::Glutin(_)
+                    | eframe::Error::NoGlutinConfigs(..)
+                    | eframe::Error::OpenGL(_)
+            );
+            crash::report_error(&error.to_string(), graphics, &log);
+            ExitCode::FAILURE
+        }
+    }
 }

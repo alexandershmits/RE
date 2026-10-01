@@ -20,16 +20,38 @@ pub fn choice_list(
                 text = text.color(good()).strong();
             } else if chosen == Some(i) {
                 text = text.color(accent()).strong();
+            } else {
+                // отключённая кнопка рисуется полупрозрачной (контраст < 3), а эти варианты читают ради разбора
+                text = text.color(ui.visuals().weak_text_color());
             }
         }
-        let button = egui::Button::new(text)
+        let mut button = egui::Button::new(text)
             .wrap_mode(egui::TextWrapMode::Wrap)
             .min_size(egui::vec2(0.0, 30.0));
-        if ui.add_enabled(!revealed, button).clicked() {
+        if revealed {
+            // Не «отключаем» кнопку: отключённый виджет egui рисует вполовину прозрачным, и правильный ответ
+            // выглядел бы блёклым. Без реакции на мышь клик просто невозможен.
+            button = button.sense(egui::Sense::hover());
+        }
+        if ui.add(button).clicked() {
             clicked = Some(i);
         }
     }
     clicked
+}
+
+/// Полоса прогресса с подписью справа от неё. Подпись внутри полосы egui красит белым (цветом выделения),
+/// а пустая полоса в светлой теме светло-серая: «0/12» и «7% курса» там не читались.
+pub fn labeled_progress(
+    ui: &mut egui::Ui,
+    fraction: f32,
+    width: f32,
+    label: impl Into<egui::WidgetText>,
+) {
+    ui.horizontal(|ui| {
+        ui.add(egui::ProgressBar::new(fraction.clamp(0.0, 1.0)).desired_width(width));
+        ui.label(label);
+    });
 }
 
 /// Рамка с заливкой на всю доступную ширину.

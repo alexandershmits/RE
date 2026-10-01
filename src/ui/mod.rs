@@ -353,11 +353,7 @@ fn top_bar(app: &mut AppState, root: &mut egui::Ui) {
                 }
                 ui.label(RichText::new(format!("⭐ {} XP", app.progress.xp)).color(warn()));
                 let pct = app.overall_percent();
-                ui.add(
-                    egui::ProgressBar::new(pct / 100.0)
-                        .text(format!("{pct:.0}% курса"))
-                        .desired_width(150.0),
-                );
+                widgets::labeled_progress(ui, pct / 100.0, 120.0, format!("{pct:.0}% курса"));
             });
         });
         ui.add_space(4.0);

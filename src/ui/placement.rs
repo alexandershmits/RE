@@ -1,6 +1,7 @@
 use eframe::egui::{self, RichText};
 
 use super::theme::{accent, good};
+use super::widgets::choice_list;
 use crate::state::AppState;
 
 pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
@@ -39,17 +40,7 @@ pub(super) fn show(app: &mut AppState, ui: &mut egui::Ui) {
         ui.label(format!("Вопрос {}/{}", pl.pos + 1, total));
         ui.strong(RichText::new(&q.q).size(16.0));
         ui.add_space(6.0);
-        let mut click: Option<usize> = None;
-        for (i, a) in q.a.iter().enumerate() {
-            let mut text = RichText::new(format!("{}) {}", char::from(b'A' + i as u8), a));
-            if pl.answered {
-                if i == q.correct { text = text.color(good()).strong(); }
-                else if Some(i) == pl.selected { text = text.color(accent()).strong(); }
-            }
-            if ui.add_enabled(!pl.answered, egui::Button::new(text).wrap_mode(egui::TextWrapMode::Wrap)).clicked() {
-                click = Some(i);
-            }
-        }
+        let click = choice_list(ui, &q.a, q.correct, pl.selected, pl.answered);
         if let Some(sel) = click {
             pl.selected = Some(sel);
             pl.answered = true;

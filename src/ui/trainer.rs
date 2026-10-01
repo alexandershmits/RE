@@ -1,5 +1,5 @@
 use super::theme::{accent, good};
-use super::widgets::choice_list;
+use super::widgets::{choice_list, labeled_progress};
 use crate::state::AppState;
 use eframe::egui::{self, RichText};
 
@@ -51,10 +51,11 @@ fn menu(app: &mut AppState, ui: &mut egui::Ui, ctx: &egui::Context) {
             .count();
         ui.horizontal(|ui| {
             ui.label(format!("{} {}:", m.icon, m.name));
-            ui.add(
-                egui::ProgressBar::new(ok as f32 / quizzes.len() as f32)
-                    .text(format!("{ok}/{}", quizzes.len()))
-                    .desired_width(260.0),
+            labeled_progress(
+                ui,
+                ok as f32 / quizzes.len() as f32,
+                260.0,
+                format!("{ok}/{}", quizzes.len()),
             );
         });
     }

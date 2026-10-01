@@ -1,9 +1,10 @@
 //! Интерфейс рисуется без паник во всех вкладках, обеих темах и на минимальном размере окна;
 //! ни один символ курса и интерфейса не превращается в «квадрат».
 
-use egui::{Context, Pos2, RawInput, Rect};
+use egui::{Color32, Context, Pos2, RawInput, Rect};
 use re50::state::{AppState, CardSession, PlacementState, Progress, Tab};
 use std::collections::BTreeSet;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 fn context(light: bool) -> Context {
     let ctx = Context::default();
@@ -17,12 +18,7 @@ fn context(light: bool) -> Context {
 
 fn frames(ctx: &Context, app: &mut AppState, size: (f32, f32), count: usize) {
     for _ in 0..count {
-        let input = RawInput {
-            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(size.0, size.1))),
-            ..RawInput::default()
-        };
-        let mut output = ctx.run_ui(input, |ui| re50::ui::run(app, ui));
-        output.textures_delta.clear(); // без окна текстуры никуда не загружаются
+        let output = frame(ctx, app, window(size));
         let warnings = warning_texts(&output.shapes);
         assert!(
             warnings.is_empty(),
@@ -30,6 +26,12 @@ fn frames(ctx: &Context, app: &mut AppState, size: (f32, f32), count: usize) {
         );
         let raw = raw_markup_texts(&output.shapes);
         assert!(raw.is_empty(), "на экране остались знаки разметки: {raw:?}");
+        let panel = ctx.global_style().visuals.panel_fill;
+        let faint = unreadable_texts(&output.shapes, panel);
+        assert!(
+            faint.is_empty(),
+            "текст почти не виден (контраст < {MIN_CONTRAST}): {faint:?}"
+        );
     }
 }
 
@@ -52,6 +54,133 @@ fn raw_markup_texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
         .into_iter()
         .filter(|t| t.matches('`').count() >= 2 || t.matches("**").count() >= 2)
         .collect()
+}
+
+/// Цвета, которыми egui на самом деле рисует глифы. Отключённый виджет гасится перекраской вершин уже
+/// построенной раскладки, а `format.color` в секциях остаётся прежним, поэтому читаем вершины.
+fn glyph_colors(t: &egui::epaint::TextShape) -> Vec<Color32> {
+    let mut colors = Vec::new();
+    for placed in &t.galley.rows {
+        let visuals = &placed.row.visuals;
+        let Some(glyphs) = visuals
+            .mesh
+            .vertices
+            .get(visuals.glyph_vertex_range.clone())
+        else {
+            continue;
+        };
+        for vertex in glyphs {
+            let color = t
+                .override_text_color
+                .unwrap_or(if vertex.color == Color32::PLACEHOLDER {
+                    t.fallback_color
+                } else {
+                    vertex.color
+                });
+            if !colors.contains(&color) {
+                colors.push(color);
+            }
+        }
+    }
+    colors
+}
+
+/// Текст нарисован частично прозрачным — так egui показывает отключённые виджеты.
+fn is_dimmed(t: &egui::epaint::TextShape) -> bool {
+    t.opacity_factor < 0.99 || glyph_colors(t).iter().any(|c| c.a() < 255)
+}
+
+/// Минимальный контраст текста с подложкой (WCAG для крупного текста и элементов интерфейса).
+const MIN_CONTRAST: f64 = 3.0;
+
+/// Цвет `src` поверх непрозрачного `dst` (egui хранит цвета с предумноженной альфой).
+fn over(src: Color32, dst: Color32) -> Color32 {
+    let keep = 255 - u16::from(src.a());
+    let mix = |s: u8, d: u8| (u16::from(s) + u16::from(d) * keep / 255).min(255) as u8;
+    Color32::from_rgb(
+        mix(src.r(), dst.r()),
+        mix(src.g(), dst.g()),
+        mix(src.b(), dst.b()),
+    )
+}
+
+/// Тексты, которые egui нарисовал с контрастом ниже `MIN_CONTRAST` относительно того, что под ними.
+/// Фигуры идут в порядке отрисовки, поэтому подложка — последний закрашенный прямоугольник под точкой.
+/// Так находится и белый текст на светлой полосе прогресса, и текст на тонированной карточке.
+fn unreadable_texts(shapes: &[egui::epaint::ClippedShape], panel: Color32) -> Vec<String> {
+    struct Fill {
+        clip: Rect,
+        rect: Rect,
+        color: Color32,
+    }
+    fn under(fills: &[Fill], at: Pos2, panel: Color32) -> Color32 {
+        let Some(i) = fills
+            .iter()
+            .rposition(|f| f.clip.contains(at) && f.rect.contains(at))
+        else {
+            return panel;
+        };
+        if fills[i].color.a() == 255 {
+            fills[i].color
+        } else {
+            over(fills[i].color, under(&fills[..i], at, panel))
+        }
+    }
+    fn walk(
+        shape: &egui::epaint::Shape,
+        clip: Rect,
+        fills: &mut Vec<Fill>,
+        panel: Color32,
+        out: &mut Vec<String>,
+    ) {
+        use egui::epaint::Shape;
+        match shape {
+            Shape::Vec(v) => v.iter().for_each(|s| walk(s, clip, fills, panel, out)),
+            Shape::Rect(r) if r.fill.a() > 0 => fills.push(Fill {
+                clip,
+                rect: r.rect,
+                color: r.fill,
+            }),
+            // Отключённые виджеты egui рисует полупрозрачными намеренно; то, что должно читаться (ответы
+            // квиза), проверяет `answered_quiz_options_are_not_dimmed`.
+            Shape::Text(t) if !is_dimmed(t) => {
+                let rect = t.galley.rect.translate(t.pos.to_vec2());
+                if !clip.intersects(rect) {
+                    return; // за пределами видимой области (прокрутка)
+                }
+                let points = [
+                    rect.left_center() + egui::vec2(2.0, 0.0),
+                    rect.center(),
+                    rect.right_center() - egui::vec2(2.0, 0.0),
+                ];
+                for glyphs in glyph_colors(t) {
+                    for at in points {
+                        let bg = under(fills, at, panel);
+                        let ratio = re50::ui::theme::contrast_ratio(glyphs, bg);
+                        if ratio < MIN_CONTRAST {
+                            out.push(format!(
+                                "«{}»: {glyphs:?} на {bg:?} = {ratio:.2}",
+                                t.galley.text().trim()
+                            ));
+                            break;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    let (mut fills, mut out) = (Vec::new(), Vec::new());
+    for clipped in shapes {
+        walk(
+            &clipped.shape,
+            clipped.clip_rect,
+            &mut fills,
+            panel,
+            &mut out,
+        );
+    }
+    out
 }
 
 fn shown_texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
@@ -116,9 +245,13 @@ fn frame(ctx: &Context, app: &mut AppState, input: RawInput) -> egui::FullOutput
     output
 }
 
+/// Ввод одного кадра. Время идёт по 0.25 с на кадр: без часов окно «Новая ачивка» и другие плавные
+/// появления навсегда остались бы на первом, почти прозрачном кадре.
 fn window(size: (f32, f32)) -> RawInput {
+    static FRAMES: AtomicU32 = AtomicU32::new(0);
     RawInput {
         screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(size.0, size.1))),
+        time: Some(f64::from(FRAMES.fetch_add(1, Ordering::Relaxed)) * 0.25),
         ..RawInput::default()
     }
 }
@@ -185,6 +318,105 @@ fn raw_markup_detector_sees_unrendered_marks() {
     output.textures_delta.clear();
     let raw = raw_markup_texts(&output.shapes);
     assert_eq!(raw, vec!["вот `код` и **жирный**".to_string()]);
+}
+
+/// Исходники `.rs` из каталога (без вшитых бинарей) одной строкой.
+fn rust_sources(dir: &std::path::Path, out: &mut String) {
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            rust_sources(&path, out);
+        } else if path.extension().is_some_and(|e| e == "rs")
+            && !path.ends_with("challenge_blob.rs")
+        {
+            out.push_str(&std::fs::read_to_string(&path).unwrap());
+        }
+    }
+}
+
+#[test]
+fn contrast_check_sees_white_text_on_an_empty_progress_bar() {
+    // регресс: подпись внутри полосы egui красит белым, а пустая полоса в светлой теме светло-серая
+    let ctx = context(true);
+    let mut output = ctx.run_ui(window((600.0, 200.0)), |ui| {
+        ui.add(egui::ProgressBar::new(0.0).text("0/12"));
+        ui.label("обычная подпись рядом");
+    });
+    output.textures_delta.clear();
+    let faint = unreadable_texts(&output.shapes, ctx.global_style().visuals.panel_fill);
+    assert_eq!(faint.len(), 1, "{faint:?}");
+    assert!(faint[0].contains("0/12"), "{faint:?}");
+    re50::ui::apply_theme(&Context::default(), &Progress::default());
+}
+
+/// Тексты, которые egui нарисовал частично прозрачными (так выглядят отключённые виджеты).
+fn dimmed_texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
+    fn walk(shape: &egui::epaint::Shape, out: &mut Vec<String>) {
+        use egui::epaint::Shape;
+        match shape {
+            Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+            Shape::Text(t) if is_dimmed(t) => out.push(t.galley.text().to_string()),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    shapes.iter().for_each(|s| walk(&s.shape, &mut out));
+    out
+}
+
+#[test]
+fn answered_quiz_options_are_not_dimmed() {
+    // регресс: после ответа кнопки вариантов отключались, и egui рисовал все варианты, включая
+    // зелёный правильный и красный выбранный, вполовину прозрачными
+    for light in [false, true] {
+        let ctx = context(light);
+        let mut app = AppState::in_memory();
+        assert!(app.start_quiz(Some(3)));
+        let before = frame(&ctx, &mut app, window((1180.0, 780.0)));
+        assert!(dimmed_texts(&before.shapes).is_empty());
+        app.tab = Tab::Trainer;
+        app.quiz.as_mut().unwrap().record(0, false);
+        let after = frame(&ctx, &mut app, window((1180.0, 780.0)));
+        let options: Vec<String> = shown_texts(&after.shapes)
+            .into_iter()
+            .filter(|t| {
+                t.starts_with("A) ")
+                    || t.starts_with("B) ")
+                    || t.starts_with("C) ")
+                    || t.starts_with("D) ")
+            })
+            .collect();
+        assert_eq!(options.len(), 4, "{options:?}");
+        let dimmed = dimmed_texts(&after.shapes);
+        assert!(
+            options.iter().all(|o| !dimmed.contains(o)),
+            "после ответа варианты нарисованы полупрозрачными (светлая тема: {light}): {dimmed:?}"
+        );
+    }
+    re50::ui::apply_theme(&Context::default(), &Progress::default());
+}
+
+#[test]
+fn progress_bars_keep_their_label_outside() {
+    let mut text = String::new();
+    rust_sources(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/ui"),
+        &mut text,
+    );
+    let widgets = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/ui/widgets.rs"),
+    )
+    .unwrap();
+    // сама функция-помощник живёт в widgets.rs и подписи в полосу не кладёт
+    let text = text.replace(&widgets, "");
+    for statement in text.split("ProgressBar::new(").skip(1) {
+        let statement = statement.split(';').next().unwrap_or_default();
+        assert!(
+            !statement.contains(".text(") && !statement.contains(".show_percentage("),
+            "подпись внутри полосы нечитаема в светлой теме — используйте widgets::labeled_progress: …{}",
+            statement.chars().take(80).collect::<String>()
+        );
+    }
 }
 
 #[test]
@@ -352,27 +584,15 @@ fn every_character_has_a_glyph() {
             _ => {}
         }
     }
-    fn rust_sources(dir: &std::path::Path, out: &mut String) {
-        for entry in std::fs::read_dir(dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.is_dir() {
-                rust_sources(&path, out);
-            } else if path.extension().is_some_and(|e| e == "rs")
-                && !path.ends_with("challenge_blob.rs")
-            {
-                out.push_str(&std::fs::read_to_string(&path).unwrap());
-            }
-        }
-    }
     fn coverage(
         defs: &egui::FontDefinitions,
         family: egui::FontFamily,
-    ) -> Vec<ttf_parser::Face<'_>> {
+    ) -> Vec<skrifa::FontRef<'_>> {
         defs.families[&family]
             .iter()
             .map(|name| {
                 let data = &defs.font_data[name];
-                ttf_parser::Face::parse(&data.font, data.index).expect("шрифт разбирается")
+                skrifa::FontRef::from_index(&data.font, data.index).expect("шрифт разбирается")
             })
             .collect()
     }
@@ -394,8 +614,15 @@ fn every_character_has_a_glyph() {
     let defs = re50::ui::theme::font_definitions();
     let proportional = coverage(&defs, egui::FontFamily::Proportional);
     let monospace = coverage(&defs, egui::FontFamily::Monospace);
-    let has =
-        |faces: &[ttf_parser::Face], c: char| faces.iter().any(|f| f.glyph_index(c).is_some());
+    let has = |faces: &[skrifa::FontRef], c: char| {
+        use skrifa::MetadataProvider;
+        faces
+            .iter()
+            .any(|f| f.charmap().map(c).is_some_and(|glyph| glyph.to_u32() != 0))
+    };
+    // контроль самой проверки: настоящий символ есть, несуществующий — нет
+    assert!(has(&proportional, 'Ж') && has(&monospace, 'x'));
+    assert!(!has(&proportional, '\u{10FFFE}') && !has(&monospace, '\u{10FFFE}'));
     let (mut missing_text, mut missing_code) = (BTreeSet::new(), BTreeSet::new());
     for (text, code) in &texts {
         for c in text
@@ -450,4 +677,25 @@ fn id_clash_detector_sees_duplicate_widgets() {
         !warning_texts(&output.shapes).is_empty(),
         "детектор не заметил совпадающие id"
     );
+}
+
+#[test]
+fn parallel_tests_do_not_share_a_theme() {
+    // регресс: флаг темы был общим для процесса, и тесты в разных потоках видели палитру друг друга
+    // (светлый акцент на тёмной подложке); теперь тема принадлежит потоку
+    let handles: Vec<_> = [false, true, false, true]
+        .into_iter()
+        .map(|light| {
+            std::thread::spawn(move || {
+                let _ctx = context(light);
+                for _ in 0..200 {
+                    assert_eq!(!re50::ui::theme::is_dark(), light);
+                    std::thread::yield_now();
+                }
+            })
+        })
+        .collect();
+    for handle in handles {
+        handle.join().expect("поток видел чужую тему");
+    }
 }

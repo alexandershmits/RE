@@ -16,7 +16,7 @@ Noto Emoji подключён как запасной шрифт: в набор�
 
 ## Библиотеки Rust
 
-Приложение собрано на [egui/eframe](https://github.com/emilk/egui) (MIT OR Apache-2.0), `serde` и `serde_json` (MIT OR Apache-2.0) и их зависимостях; полный список с версиями — в `Cargo.lock`. Для тестов используются `sha2` и `ttf-parser` (MIT OR Apache-2.0). У каждого из примерно 400 пакетов есть разрешающая лицензия (MIT, Apache-2.0, BSD, Zlib, ISC, Unicode-3.0, BSL-1.0, Unlicense, 0BSD); где указано «OR LGPL/GPL», выбирается MIT или Apache-2.0.
+Приложение собрано на [egui/eframe](https://github.com/emilk/egui) (MIT OR Apache-2.0), `serde` и `serde_json` (MIT OR Apache-2.0) и их зависимостях; полный список с версиями — в `Cargo.lock`. Для тестов используются `sha2` и `skrifa` (MIT OR Apache-2.0; `skrifa` уже входит в дерево egui). У каждого из примерно 400 пакетов есть разрешающая лицензия (MIT, Apache-2.0, BSD, Zlib, ISC, Unicode-3.0, BSL-1.0, Unlicense, 0BSD); где указано «OR LGPL/GPL», выбирается MIT или Apache-2.0.
 
 Тексты лицензий и авторские права лежат в исходниках пакетов (у части крейтов egui файла лицензии в архиве нет — он есть в репозитории проекта). Полного пакета лицензий в этом репозитории нет: при публикации бинарей сформируйте его, например, командой `cargo about generate`, и приложите к релизу.
 

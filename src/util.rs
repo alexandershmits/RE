@@ -61,6 +61,18 @@ pub fn format_day(day: u64) -> String {
     format!("{y:04}-{m:02}-{d:02}")
 }
 
+/// `ГГГГ-ММ-ДД ЧЧ:ММ:СС` (UTC) для момента с Unix-эпохи.
+pub fn format_datetime(secs: u64) -> String {
+    let rest = secs % SECS_PER_DAY;
+    format!(
+        "{} {:02}:{:02}:{:02}",
+        format_day(secs / SECS_PER_DAY),
+        rest / 3_600,
+        rest % 3_600 / 60,
+        rest % 60
+    )
+}
+
 /// «42 мин» или «1.5 ч».
 pub fn format_duration(secs: u64) -> String {
     if secs >= 3600 {
@@ -81,6 +93,13 @@ mod tests {
         assert_eq!(civil_from_days(20_725), (2026, 9, 29));
         assert_eq!(civil_from_days(-1), (1969, 12, 31));
         assert_eq!(format_day(20_725), "2026-09-29");
+    }
+
+    #[test]
+    fn datetime_is_utc_with_seconds() {
+        assert_eq!(format_datetime(0), "1970-01-01 00:00:00");
+        assert_eq!(format_datetime(1_000_000_000), "2001-09-09 01:46:40");
+        assert_eq!(format_datetime(86_399), "1970-01-01 23:59:59");
     }
 
     #[test]

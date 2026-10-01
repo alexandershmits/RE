@@ -6,10 +6,14 @@ on:
   pull_request:
   workflow_dispatch:
   workflow_call:
+  schedule:
+    # раз в неделю: новая версия stable (rustc, clippy) не должна впервые покраснеть на чужом PR
+    - cron: "0 5 * * 1"
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # устаревшие прогоны PR отменяем; прогоны main и релиза (workflow_call) доводим до конца
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -54,6 +58,15 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --locked
+
+  deny:
+    name: cargo-deny (licenses · bans · sources)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check bans licenses sources
 
   challenges:
     name: challenges (gcc + mingw)

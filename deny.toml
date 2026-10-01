@@ -1,0 +1,42 @@
+# Проверка цепочки поставки: `cargo deny check` (в CI — job `cargo-deny`, советы RustSec — audit.yml).
+[graph]
+# Только то, что реально поставляется: бинари под эти платформы.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "aarch64-apple-darwin",
+]
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[licenses]
+version = 2
+confidence-threshold = 0.93
+# Разрешающие лицензии. Для выражений вида «MIT OR Apache-2.0 OR LGPL…» достаточно любой разрешённой ветки.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "Unlicense",
+    "0BSD",
+    "BSL-1.0",
+    "OFL-1.1",
+    "Ubuntu-font-1.0",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
