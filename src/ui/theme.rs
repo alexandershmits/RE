@@ -140,6 +140,25 @@ pub fn apply(ctx: &egui::Context, progress: &Progress) {
     ctx.set_global_style(style);
 }
 
+/// Относительная яркость по WCAG 2.x (цвет считается непрозрачным).
+fn luminance(c: Color32) -> f64 {
+    let lin = |v: u8| {
+        let s = f64::from(v) / 255.0;
+        if s <= 0.03928 {
+            s / 12.92
+        } else {
+            ((s + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
+}
+
+/// Контраст двух непрозрачных цветов по WCAG: от 1 (одинаковые) до 21 (чёрное на белом).
+pub fn contrast_ratio(a: Color32, b: Color32) -> f64 {
+    let (la, lb) = (luminance(a), luminance(b));
+    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,23 +169,6 @@ mod tests {
 
     fn exclusive() -> MutexGuard<'static, ()> {
         THEME.lock().unwrap_or_else(|e| e.into_inner())
-    }
-
-    fn luminance(c: Color32) -> f64 {
-        let lin = |v: u8| {
-            let s = f64::from(v) / 255.0;
-            if s <= 0.03928 {
-                s / 12.92
-            } else {
-                ((s + 0.055) / 1.055).powf(2.4)
-            }
-        };
-        0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
-    }
-
-    fn contrast(a: Color32, b: Color32) -> f64 {
-        let (la, lb) = (luminance(a), luminance(b));
-        (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
     }
 
     #[test]
@@ -188,7 +190,7 @@ mod tests {
                 ("info", info()),
                 ("purple", purple()),
             ] {
-                let c = contrast(color, panel);
+                let c = contrast_ratio(color, panel);
                 assert!(
                     c >= 4.5,
                     "{name} в {} теме: контраст {c:.2} < 4.5",
@@ -201,29 +203,29 @@ mod tests {
             }
             let text = style.visuals.widgets.noninteractive.fg_stroke.color;
             assert!(
-                contrast(text, panel) >= 7.0,
+                contrast_ratio(text, panel) >= 7.0,
                 "основной текст ({light}): {:.2}",
-                contrast(text, panel)
+                contrast_ratio(text, panel)
             );
             let weak = style
                 .visuals
                 .weak_text_color
                 .expect("слабый текст задан явно");
             assert!(
-                contrast(weak, panel) >= 4.5,
+                contrast_ratio(weak, panel) >= 4.5,
                 "слабый текст ({light}): {:.2}",
-                contrast(weak, panel)
+                contrast_ratio(weak, panel)
             );
             assert!(
-                contrast(style.visuals.hyperlink_color, panel) >= 4.5,
+                contrast_ratio(style.visuals.hyperlink_color, panel) >= 4.5,
                 "ссылки ({light})"
             );
             assert!(
-                contrast(accent(), soft(38, 30, 40)) >= 4.5,
+                contrast_ratio(accent(), soft(38, 30, 40)) >= 4.5,
                 "акцент на тонированной карточке ({light})"
             );
             assert!(
-                contrast(text, code_bg()) >= 7.0,
+                contrast_ratio(text, code_bg()) >= 7.0,
                 "текст на блоке кода ({light})"
             );
         }
