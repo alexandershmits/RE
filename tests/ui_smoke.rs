@@ -587,12 +587,12 @@ fn every_character_has_a_glyph() {
     fn coverage(
         defs: &egui::FontDefinitions,
         family: egui::FontFamily,
-    ) -> Vec<ttf_parser::Face<'_>> {
+    ) -> Vec<skrifa::FontRef<'_>> {
         defs.families[&family]
             .iter()
             .map(|name| {
                 let data = &defs.font_data[name];
-                ttf_parser::Face::parse(&data.font, data.index).expect("шрифт разбирается")
+                skrifa::FontRef::from_index(&data.font, data.index).expect("шрифт разбирается")
             })
             .collect()
     }
@@ -614,8 +614,15 @@ fn every_character_has_a_glyph() {
     let defs = re50::ui::theme::font_definitions();
     let proportional = coverage(&defs, egui::FontFamily::Proportional);
     let monospace = coverage(&defs, egui::FontFamily::Monospace);
-    let has =
-        |faces: &[ttf_parser::Face], c: char| faces.iter().any(|f| f.glyph_index(c).is_some());
+    let has = |faces: &[skrifa::FontRef], c: char| {
+        use skrifa::MetadataProvider;
+        faces
+            .iter()
+            .any(|f| f.charmap().map(c).is_some_and(|glyph| glyph.to_u32() != 0))
+    };
+    // контроль самой проверки: настоящий символ есть, несуществующий — нет
+    assert!(has(&proportional, 'Ж') && has(&monospace, 'x'));
+    assert!(!has(&proportional, '\u{10FFFE}') && !has(&monospace, '\u{10FFFE}'));
     let (mut missing_text, mut missing_code) = (BTreeSet::new(), BTreeSet::new());
     for (text, code) in &texts {
         for c in text
