@@ -678,3 +678,24 @@ fn id_clash_detector_sees_duplicate_widgets() {
         "детектор не заметил совпадающие id"
     );
 }
+
+#[test]
+fn parallel_tests_do_not_share_a_theme() {
+    // регресс: флаг темы был общим для процесса, и тесты в разных потоках видели палитру друг друга
+    // (светлый акцент на тёмной подложке); теперь тема принадлежит потоку
+    let handles: Vec<_> = [false, true, false, true]
+        .into_iter()
+        .map(|light| {
+            std::thread::spawn(move || {
+                let _ctx = context(light);
+                for _ in 0..200 {
+                    assert_eq!(!re50::ui::theme::is_dark(), light);
+                    std::thread::yield_now();
+                }
+            })
+        })
+        .collect();
+    for handle in handles {
+        handle.join().expect("поток видел чужую тему");
+    }
+}

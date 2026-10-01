@@ -2,7 +2,7 @@
 
 use crate::state::progress::{Progress, MAX_FONT_SCALE, MIN_FONT_SCALE};
 use eframe::egui::{self, Color32, FontData, FontDefinitions, FontFamily, Visuals};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::cell::Cell;
 use std::sync::Arc;
 
 /// Монохромный Noto Emoji (OFL): в шрифтах egui нет эмодзи после Unicode 11 — 🩸 🧪 🥋 рисовались квадратами.
@@ -11,10 +11,14 @@ const EMOJI_FONT: &[u8] = include_bytes!("../../assets/fonts/NotoEmoji-Regular.t
 pub const DARK_PANEL: Color32 = Color32::from_rgb(18, 20, 26);
 pub const LIGHT_PANEL: Color32 = Color32::from_rgb(245, 245, 248);
 
-static DARK: AtomicBool = AtomicBool::new(true);
+thread_local! {
+    /// Тема потока, в котором рисуется интерфейс (он один). Флаг на весь процесс смешивал бы палитры
+    /// параллельно идущих тестов: светлый акцент на тёмной подложке.
+    static DARK: Cell<bool> = const { Cell::new(true) };
+}
 
 pub fn is_dark() -> bool {
-    DARK.load(Ordering::Relaxed)
+    DARK.get()
 }
 
 fn pick(dark: (u8, u8, u8), light: (u8, u8, u8)) -> Color32 {
@@ -99,7 +103,7 @@ pub fn install_fonts(ctx: &egui::Context) {
 /// (раньше каждый вызов умножал уже увеличенные шрифты, и «A+» уменьшал текст).
 pub fn apply(ctx: &egui::Context, progress: &Progress) {
     let light = progress.is_light();
-    DARK.store(!light, Ordering::Relaxed);
+    DARK.set(!light);
     let mut v = if light {
         Visuals::light()
     } else {
@@ -162,18 +166,8 @@ pub fn contrast_ratio(a: Color32, b: Color32) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, MutexGuard};
-
-    /// `apply` меняет глобальный флаг темы, поэтому тесты, которые его читают или пишут, идут по очереди.
-    static THEME: Mutex<()> = Mutex::new(());
-
-    fn exclusive() -> MutexGuard<'static, ()> {
-        THEME.lock().unwrap_or_else(|e| e.into_inner())
-    }
-
     #[test]
     fn palette_is_readable_in_both_themes() {
-        let _guard = exclusive();
         for light in [false, true] {
             let ctx = egui::Context::default();
             let progress = Progress {
@@ -234,7 +228,6 @@ mod tests {
 
     #[test]
     fn applying_twice_does_not_compound_the_font_scale() {
-        let _guard = exclusive();
         // регресс: apply_style брал текущий стиль и умножал размеры ещё раз
         let ctx = egui::Context::default();
         let progress = Progress {
@@ -253,7 +246,6 @@ mod tests {
 
     #[test]
     fn font_scale_is_clamped() {
-        let _guard = exclusive();
         let ctx = egui::Context::default();
         let base = egui::Style::default().text_styles[&egui::TextStyle::Body].size;
         apply(
