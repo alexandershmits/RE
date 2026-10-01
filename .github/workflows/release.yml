@@ -31,12 +31,8 @@ jobs:
       - name: Tag matches the Cargo.toml version
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
-        run: |
-          version=$(cargo pkgid | sed 's/.*[#@]//')
-          if [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
-            echo "::error::tag $GITHUB_REF_NAME does not match Cargo.toml version $version"
-            exit 1
-          fi
+        # vX.Y и vX.Y.Z обозначают версию X.Y.0 и X.Y.Z (прежние теги проекта — v7.1)
+        run: bash tools/check_release_tag.sh "$GITHUB_REF_NAME" "$(cargo pkgid | sed 's/.*[#@]//')"
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release --locked
       - name: Name the binary per platform
@@ -55,6 +51,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+      - name: Release notes from CHANGELOG.md
+        run: python3 tools/changelog_section.py > release-notes.md
       - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
@@ -64,4 +63,5 @@ jobs:
       - uses: softprops/action-gh-release@v3
         with:
           files: dist/*
+          body_path: release-notes.md
           generate_release_notes: true

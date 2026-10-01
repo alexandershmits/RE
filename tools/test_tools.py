@@ -2,10 +2,13 @@
 python3 -m unittest discover -s tools -p "test_*.py" -v
 """
 import ast
+import contextlib
+import io
 import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -17,6 +20,7 @@ ROOT = os.path.join(TOOLS, "..")
 sys.path.insert(0, TOOLS)
 
 import challenge_generator  # noqa: E402
+import changelog_section  # noqa: E402
 import check_links  # noqa: E402
 
 
@@ -97,6 +101,101 @@ class Generator(unittest.TestCase):
             with mock.patch.dict(challenge_generator.BUILDERS, {"gen2": prints_flag_always}):
                 with self.assertRaisesRegex(RuntimeError, "неверном вводе"):
                     challenge_generator.build("gen2", out, seed=1)
+
+
+@unittest.skipUnless(shutil.which("bash"), "нужен bash")
+class ReleaseTag(unittest.TestCase):
+    SCRIPT = os.path.join(TOOLS, "check_release_tag.sh")
+
+    def check(self, tag, version):
+        return subprocess.run(["bash", self.SCRIPT, tag, version], capture_output=True, text=True)
+
+    def test_two_and_three_part_tags_mean_the_same_version(self):
+        # прежние теги проекта — v7.1, v6.9; Cargo требует три числа
+        for tag in ("v7.2", "v7.2.0"):
+            result = self.check(tag, "7.2.0")
+            self.assertEqual(result.returncode, 0, f"{tag}: {result.stdout}")
+        self.assertEqual(self.check("v7.10", "7.10.0").returncode, 0)
+        self.assertEqual(self.check("v7.2.1", "7.2.1").returncode, 0)
+
+    def test_everything_else_is_rejected_with_a_github_error(self):
+        wrong = [
+            ("v7.2", "7.2.1"),  # двухчастный тег — это X.Y.0
+            ("v7.2.1", "7.2.0"),
+            ("v7.3", "7.2.0"),
+            ("v7", "7.2.0"),
+            ("7.2", "7.2.0"),  # без «v» workflow не запустится, но скрипт тоже не должен соглашаться
+            ("v7.2.0-rc1", "7.2.0"),
+            ("v7.2-beta", "7.2.0"),
+            ("v7.2.0.0", "7.2.0"),
+            ("v07.2", "7.2.0"),
+            ("vx.y", "7.2.0"),
+            ("", "7.2.0"),
+            ("v7.2", ""),  # cargo pkgid ничего не вернул
+        ]
+        for tag, version in wrong:
+            with self.subTest(tag=tag, version=version):
+                result = self.check(tag, version)
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn("::error::", result.stdout)
+
+
+class Changelog(unittest.TestCase):
+    SAMPLE = """# Changelog
+
+## [2.0.0] — 2026-02-02
+
+### Добавлено
+- б
+
+## [1.0.0] — 2026-01-01
+- а
+"""
+
+    def run_main(self, text, version="2.0.0"):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "CHANGELOG.md")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(text)
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = changelog_section.main(["changelog_section.py", version, path])
+            return code, out.getvalue(), err.getvalue()
+
+    def test_a_section_is_cut_at_the_next_release_and_has_no_heading(self):
+        self.assertEqual(
+            changelog_section.section(self.SAMPLE, "2.0.0"), ("2026-02-02", "### Добавлено\n- б")
+        )
+        self.assertEqual(changelog_section.section(self.SAMPLE, "1.0.0"), ("2026-01-01", "- а"))
+        self.assertEqual(changelog_section.section(self.SAMPLE, "3.0.0"), (None, None))
+
+    def test_release_text_is_printed(self):
+        code, out, _ = self.run_main(self.SAMPLE)
+        self.assertEqual((code, out), (0, "### Добавлено\n- б\n"))
+
+    def test_an_unreleasable_section_is_refused(self):
+        cases = {
+            "нет раздела": (self.SAMPLE, "9.9.9", "нет раздела"),
+            "без даты": (self.SAMPLE.replace(" — 2026-02-02", ""), "2.0.0", "нет даты"),
+            "дата не по формату": (self.SAMPLE.replace("2026-02-02", "2026-2-2"), "2.0.0", "нет даты"),
+            "несуществующий день": (self.SAMPLE.replace("2026-02-02", "2026-02-31"), "2.0.0", "нет даты"),
+            "пустой раздел": ("## [2.0.0] — 2026-02-02\n\n## [1.0.0] — 2026-01-01\n- а\n", "2.0.0", "пуст"),
+        }
+        for name, (text, version, message) in cases.items():
+            with self.subTest(name):
+                code, out, err = self.run_main(text, version)
+                self.assertEqual((code, out), (1, ""), err)
+                self.assertIn(message, err)
+
+    def test_the_current_version_has_a_dated_section_and_it_matches_cargo(self):
+        # без этого релиз упал бы в самом конце, после сборки трёх бинарей
+        version = changelog_section.cargo_version()
+        self.assertRegex(version, r"^\d+\.\d+\.\d+$", "Cargo требует три числа")
+        with open(os.path.join(ROOT, "CHANGELOG.md"), encoding="utf-8") as f:
+            date, body = changelog_section.section(f.read(), version)
+        self.assertTrue(changelog_section.valid_date(date), f"у раздела {version} нет настоящей даты: {date!r}")
+        self.assertTrue(body, f"раздел {version} пуст")
+        self.assertNotIn("\n## [", "\n" + body)
 
 
 if __name__ == "__main__":
