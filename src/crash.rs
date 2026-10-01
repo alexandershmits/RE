@@ -9,9 +9,10 @@ use std::path::{Path, PathBuf};
 pub const LOG_NAME: &str = "crash.log";
 /// Больше этого журнал сдвигается в `crash.log.old`, чтобы не расти бесконечно.
 const MAX_LOG_BYTES: u64 = 256 * 1024;
-/// Сколько символов трассировки и текста ошибки попадает в запись и в окно сообщения.
+/// Сколько символов трассировки попадает в запись журнала и сколько текста ошибки — в окно сообщения
+/// (в журнале остаётся полный текст).
 const MAX_TRACE_CHARS: usize = 8_000;
-const MAX_DIALOG_CHARS: usize = 700;
+const MAX_DIALOG_CHARS: usize = 300;
 
 /// Журнал лежит рядом с прогрессом; без каталога настроек — во временной папке.
 pub fn log_path(paths: &Paths) -> PathBuf {
@@ -231,7 +232,7 @@ mod tests {
             error_message(&"э".repeat(5_000), false, log)
                 .chars()
                 .count()
-                < 1_200
+                < 600
         );
     }
 }
