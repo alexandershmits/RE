@@ -8,6 +8,9 @@ updates:
     groups:
       egui:
         patterns: ["egui*", "eframe", "epaint*", "emath", "ecolor"]
+      # остальные мелкие обновления — одним PR в неделю; крупные версии приходят отдельно
+      rust-minor-patch:
+        update-types: ["minor", "patch"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
