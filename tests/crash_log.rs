@@ -16,12 +16,14 @@ fn panics_are_logged_with_thread_message_and_location() {
     assert!(worker.join().is_err(), "паника потока должна дойти до join");
 
     let text = std::fs::read_to_string(&log).expect("журнал создан хуком");
+    // на Windows путь к файлу пишется с обратной косой чертой
+    let normalized = text.replace('\\', "/");
     for needle in [
         "паника в потоке «фоновая-задача»",
         "сломалось в задаче",
         "tests/crash_log.rs",
     ] {
-        assert!(text.contains(needle), "{needle}:\n{text}");
+        assert!(normalized.contains(needle), "{needle}:\n{text}");
     }
     assert!(
         text.starts_with("=== "),
