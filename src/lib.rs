@@ -1,6 +1,7 @@
 //! RE-50 — приложение курса по реверс-инжинирингу (Rust + egui).
 
 pub mod challenge_blob;
+pub mod crash;
 pub mod curriculum;
 pub mod detector;
 pub mod emulator;
