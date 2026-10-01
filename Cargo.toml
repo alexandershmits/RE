@@ -29,7 +29,7 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_Wind
 
 [dev-dependencies]
 sha2 = "0.11"
-skrifa = "0.44"
+skrifa = "0.47"
 
 [profile.release]
 opt-level = 3
